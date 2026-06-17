@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ScreenHeader } from "../components/ScreenHeader"; // パスは配置に合わせて調整してください
+import { ScreenHeader } from "../components/ScreenHeader";
 
 const nutrients = [
   {
@@ -112,91 +112,85 @@ export default function Nutrition() {
   );
 
   return (
-    <div className="min-h-screen bg-[#FDF6F0] p-4 text-[#4a3f3a] font-sans antialiased pb-10">
-      <div className="max-w-md mx-auto space-y-3">
-        {/* ヘッダーコンポーネント */}
+    <div className="min-h-screen bg-[#FDF6F0] px-0 text-[#4a3f3a] font-sans antialiased pb-10">
+      <div className="max-w-md mx-auto">
         <ScreenHeader source="/nutrition-header.png" height={100} />
 
-        {/* 栄養素カード一覧 */}
-        {nutrients.map((n) => {
-          const isOpen = selectedNutrientId === n.id;
-          return (
-            <div
-              key={n.id}
-              className={`rounded-2xl border-[1.5px] p-4 transition-all duration-300 shadow-xs ${n.color} ${n.borderColor}`}
-            >
-              {/* カードのヘッダー部分（クリック可能） */}
-              <button
-                onClick={() => setSelectedNutrientId(isOpen ? null : n.id)}
-                className="w-full flex items-center gap-3.5 text-left focus:outline-none select-none"
+        <div className="p-4 space-y-3">
+          {nutrients.map((n) => {
+            const isOpen = selectedNutrientId === n.id;
+            return (
+              <div
+                key={n.id}
+                className={`rounded-2xl border-[1.5px] p-4 transition-all duration-300 shadow-xs ${n.color} ${n.borderColor}`}
               >
-                <span className="text-4xl">{n.icon}</span>
-                <div className="flex-1">
-                  <h3 className="text-base font-extrabold text-[#4a3f3a]">
-                    {n.name}
-                  </h3>
-                  <p className="text-xs text-gray-400 font-medium mt-0.5">
-                    {n.tagline}
-                  </p>
-                </div>
-                <span className="text-xs font-bold text-gray-400 transition-transform duration-300">
-                  {isOpen ? "▲" : "▼"}
-                </span>
-              </button>
-
-              {/* 開いたときの詳細部分（アコーディオンの中身） */}
-              {isOpen && (
-                <div className="mt-4 pt-3 border-t border-black/5 space-y-4 animate-slide-down">
-                  {/* 説明概要 */}
-                  <p className="text-xs text-[#6a5060] leading-relaxed font-medium bg-white/50 p-3 rounded-xl">
-                    {n.summary}
-                  </p>
-
-                  {/* 体への嬉しい効果 */}
-                  <div className="space-y-1.5">
-                    <h4 className="text-xs font-bold text-[#4a3f3a] tracking-wide">
-                      ✨ 体への嬉しい効果
-                    </h4>
-                    <div className="space-y-1 pl-0.5">
-                      {n.benefits.map((b, i) => (
-                        <p
-                          key={i}
-                          className="text-xs text-[#6a5060] leading-relaxed font-medium"
-                        >
-                          {b}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 含まれる食材 */}
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-bold text-[#4a3f3a] tracking-wide">
-                      🛒 含まれる食材
-                    </h4>
-                    <div className="flex flex-wrap gap-1.5">
-                      {n.foods.map((f, i) => (
-                        <div
-                          key={i}
-                          className={`rounded-full border border-black/5 px-3 py-1 text-[11px] font-bold bg-white/80 text-[#4a3f3a] ${n.borderColor}`}
-                        >
-                          {f}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 応援の心温まるメッセージ */}
-                  <div className="bg-white/80 rounded-xl p-3 text-center border border-dashed border-black/10">
-                    <p className="text-xs text-[#6a5060] font-semibold leading-normal">
-                      {n.message}
+                <button
+                  onClick={() => setSelectedNutrientId(isOpen ? null : n.id)}
+                  className="w-full flex items-center gap-3.5 text-left focus:outline-none select-none"
+                >
+                  <span className="text-4xl">{n.icon}</span>
+                  <div className="flex-1">
+                    <h3 className="text-base font-extrabold text-[#4a3f3a]">
+                      {n.name}
+                    </h3>
+                    <p className="text-xs text-gray-400 font-medium mt-0.5">
+                      {n.tagline}
                     </p>
                   </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                  <span className="text-xs font-bold text-gray-400 transition-transform duration-300">
+                    {isOpen ? "▲" : "▼"}
+                  </span>
+                </button>
+
+                {isOpen && (
+                  <div className="mt-4 pt-3 border-t border-black/5 space-y-4 animate-slide-down">
+                    <p className="text-xs text-[#6a5060] leading-relaxed font-medium bg-white/50 p-3 rounded-xl">
+                      {n.summary}
+                    </p>
+
+                    <div className="space-y-1.5">
+                      <h4 className="text-xs font-bold text-[#4a3f3a] tracking-wide">
+                        ✨ 体への嬉しい効果
+                      </h4>
+                      <div className="space-y-1 pl-0.5">
+                        {n.benefits.map((b, i) => (
+                          <p
+                            key={i}
+                            className="text-xs text-[#6a5060] leading-relaxed font-medium"
+                          >
+                            {b}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-[#4a3f3a] tracking-wide">
+                        🛒 含まれる食材
+                      </h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {n.foods.map((f, i) => (
+                          <div
+                            key={i}
+                            className={`rounded-full border border-black/5 px-3 py-1 text-[11px] font-bold bg-white/80 text-[#4a3f3a] ${n.borderColor}`}
+                          >
+                            {f}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-white/80 rounded-xl p-3 text-center border border-dashed border-black/10">
+                      <p className="text-xs text-[#6a5060] font-semibold leading-normal">
+                        {n.message}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ScreenHeader } from "../components/ScreenHeader";
+
 const categories = [
   {
     id: "fruit",
@@ -168,7 +169,6 @@ export default function FoodBook() {
 
   return (
     <div className="min-h-screen bg-[#FDF6F0] relative font-sans antialiased pb-10">
-      {/* 背景ドット（ImageBackgroundの代わりに、CSSの可愛いドット背景を使用するとさらに軽量です！） */}
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.06]"
         style={{
@@ -177,56 +177,55 @@ export default function FoodBook() {
         }}
       />
 
-      <div className="max-w-md mx-auto space-y-4 relative z-10 p-4">
-        {/* ヘッダーコンポーネントの呼び出し */}
+      <div className="max-w-md mx-auto relative z-10">
         <ScreenHeader source="/foodbook-header.png" height={100} />
 
-        {/* カテゴリタブ（横スクロール） */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none whitespace-nowrap">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-4 py-2 rounded-full text-xs font-bold transition text-[#4a3f3a] ${
-                selectedCategory === cat.id
-                  ? cat.activeBg
-                  : "bg-[#F0EEE8] hover:bg-gray-200"
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
-
-        {/* 食材グリッド */}
-        <div className="grid grid-cols-2 gap-3.5">
-          {current.items.map((item) => {
-            const emoji = item.name.split(" ")[0];
-            const name = item.name.split(" ").slice(1).join(" ");
-            return (
+        <div className="p-4 space-y-4">
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none whitespace-nowrap">
+            {categories.map((cat) => (
               <button
-                key={item.name}
-                onClick={() => setSelectedItem(item)}
-                className={`rounded-2xl border-[1.5px] p-5 flex flex-col items-center justify-center gap-2 transition hover:scale-[1.02] active:scale-[0.98] ${current.color} ${current.borderColor}`}
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition text-[#4a3f3a] ${
+                  selectedCategory === cat.id
+                    ? cat.activeBg
+                    : "bg-[#F0EEE8] hover:bg-gray-200"
+                }`}
               >
-                <span className="text-4xl">{emoji}</span>
-                <span className="text-sm font-bold text-[#4a3f3a]">{name}</span>
+                {cat.label}
               </button>
-            );
-          })}
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3.5">
+            {current.items.map((item) => {
+              const emoji = item.name.split(" ")[0];
+              const name = item.name.split(" ").slice(1).join(" ");
+              return (
+                <button
+                  key={item.name}
+                  onClick={() => setSelectedItem(item)}
+                  className={`rounded-2xl border-[1.5px] p-5 flex flex-col items-center justify-center gap-2 transition hover:scale-[1.02] active:scale-[0.98] ${current.color} ${current.borderColor}`}
+                >
+                  <span className="text-4xl">{emoji}</span>
+                  <span className="text-sm font-bold text-[#4a3f3a]">
+                    {name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* --- 詳細モーダル (条件分岐によるWebポップアップ表示) --- */}
       {selectedItem && (
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in"
           onClick={() => setSelectedItem(null)}
         >
-          {/* 白いカード部分 */}
           <div
             className={`w-full max-w-sm bg-white rounded-3xl p-6 border-2 flex flex-col gap-4 shadow-xl transform transition-all ${current.borderColor}`}
-            onClick={(e) => e.stopPropagation()} // カード内クリックで閉じないようにする
+            onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-xl font-extrabold text-[#4a3f3a]">
               {selectedItem.name}
@@ -235,7 +234,6 @@ export default function FoodBook() {
               {selectedItem.effect}
             </p>
 
-            {/* タグ一覧 */}
             <div className="flex flex-wrap gap-1.5">
               {selectedItem.tags.map((tag) => (
                 <div
@@ -247,7 +245,6 @@ export default function FoodBook() {
               ))}
             </div>
 
-            {/* 閉じるボタン */}
             <button
               onClick={() => setSelectedItem(null)}
               className={`w-full py-3 rounded-2xl text-xs font-bold text-white transition hover:opacity-90 active:scale-98 ${current.activeBg}`}
