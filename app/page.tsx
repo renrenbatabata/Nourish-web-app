@@ -38,20 +38,25 @@ export default function Home() {
       message: "夜ごはんも食べられたね。今日もよく頑張ったね🌙",
     },
   });
-  // コンポーネントの中（stateの下あたり）に追加
-  const today = new Date();
-  const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
-  const todayLabel = `今日 ${today.getMonth() + 1}月${today.getDate()}日（${dayNames[today.getDay()]}）`;
+
   const [snacks, setSnacks] = useState<Snack[]>([]);
   const [snackInput, setSnackInput] = useState("");
   const [diaryNote, setDiaryNote] = useState("");
   const [diarySaved, setDiarySaved] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [pastMealInput, setPastMealInput] = useState("");
 
   const [mealHistory, setMealHistory] = useState<Record<string, string[]>>({
     "2026-06-04": ["breakfast", "lunch", "dinner"],
     "2026-06-05": ["breakfast", "lunch"],
     "2026-06-06": ["breakfast"],
   });
+
+  // 今日の日付ラベル
+  const todayDate = new Date();
+  const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
+  const todayLabel = `今日 ${todayDate.getMonth() + 1}月${todayDate.getDate()}日（${dayNames[todayDate.getDay()]}）`;
+  const todayKey = todayDate.toISOString().split("T")[0];
 
   // --- 定数・設定 ---
   const mealConfig = [
@@ -99,7 +104,7 @@ export default function Home() {
     {
       label: "🍗 タンパク質",
       hint: "髪・肌・筋肉の材料",
-      color: "bg-[#9FE1CB}",
+      color: "bg-[#9FE1CB]",
       width: "75%",
       comment: "いい調子！髪がツヤツヤになってくるよ✨",
     },
@@ -119,38 +124,29 @@ export default function Home() {
     },
   ];
 
-  // --- 機能・ハンドラー ---
-
-  // 食事の写真選択（Webのファイル入力システム）
+  // --- ハンドラー ---
   const handleMealImageChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
     mealKey: keyof Meals,
   ) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
-    const fakeUri = URL.createObjectURL(file); // ブラウザ用の一時URL
-
+    const fakeUri = URL.createObjectURL(file);
     setMeals((prev) => ({
       ...prev,
       [mealKey]: { ...prev[mealKey], photo: fakeUri },
     }));
-
-    // ※ここに本来の analyzeFood(file) などのAI分析を繋ぎます
-
-    const today = new Date().toISOString().split("T")[0];
     setMealHistory((prev) => ({
       ...prev,
-      [today]: [...(prev[today] || []), mealKey],
+      [todayKey]: [...(prev[todayKey] || []), mealKey],
     }));
-
     await addDoc(collection(db, "meals"), {
       mealType: mealKey,
-      photoUri: fakeUri, // 本番運用時はStorageのURLを推奨
+      photoUri: fakeUri,
       date: new Date().toISOString(),
     });
   };
 
-  // 間食の追加
   const addSnack = async () => {
     if (!snackInput.trim()) return;
     const newSnack: Snack = {
@@ -164,7 +160,6 @@ export default function Home() {
       message: "",
     };
     setSnacks((prev) => [...prev, newSnack]);
-
     await addDoc(collection(db, "snacks"), {
       note: snackInput,
       date: new Date().toISOString(),
@@ -172,7 +167,6 @@ export default function Home() {
     setSnackInput("");
   };
 
-  // 間食の写真選択
   const handleSnackImageChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
     snackId: string,
@@ -180,14 +174,11 @@ export default function Home() {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     const fakeUri = URL.createObjectURL(file);
-
     setSnacks((prev) =>
       prev.map((s) =>
         s.id === snackId ? { ...s, photo: fakeUri, message: "分析中...🌸" } : s,
       ),
     );
-
-    // ※本来はここに analyzeFoodFree を繋いでメッセージを更新します
     setTimeout(() => {
       setSnacks((prev) =>
         prev.map((s) =>
@@ -197,7 +188,6 @@ export default function Home() {
     }, 1500);
   };
 
-  // 日記の保存
   const saveDiary = async () => {
     if (!diaryNote.trim()) return;
     await addDoc(collection(db, "diary"), {
@@ -208,6 +198,21 @@ export default function Home() {
     alert("日記を保存したよ🌸");
   };
 
+  const addPastMeal = async () => {
+    if (!selectedDay || !pastMealInput.trim()) return;
+    setMealHistory((prev) => ({
+      ...prev,
+      [selectedDay]: [...(prev[selectedDay] || []), "past"],
+    }));
+    await addDoc(collection(db, "meals"), {
+      mealType: "past",
+      note: pastMealInput,
+      date: new Date(selectedDay).toISOString(),
+    });
+    setPastMealInput("");
+    setSelectedDay(null);
+  };
+
   return (
     <div className="min-h-screen bg-[#FDF6F0] px-0 text-[#4a3f3a] font-sans antialiased pb-10">
       <div className="max-w-md mx-auto space-y-4">
@@ -215,7 +220,7 @@ export default function Home() {
 
         <div className="p-4 space-y-4">
           {/* 日付ラベル */}
-          <div className="flex items-center justify-center gap-2 py-1">
+          <div className="flex items-center gap-2 py-1">
             <div className="h-px flex-1 bg-[#F9C6D0]" />
             <p className="text-sm font-bold tracking-wider text-[#7a3545] px-2">
               {todayLabel}
@@ -238,7 +243,6 @@ export default function Home() {
                     <span className="text-[10px]">{meal.icon}</span>
                     <span className="text-[9px] font-bold">{meal.label}</span>
                   </div>
-
                   {data.photo ? (
                     <div className="mt-2 flex flex-col gap-1">
                       <Image
@@ -305,7 +309,6 @@ export default function Home() {
                 追加
               </button>
             </div>
-
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               {snacks.map((s) => (
                 <div
@@ -368,7 +371,7 @@ export default function Home() {
             />
             <button
               onClick={saveDiary}
-              className={`w-full p-2.5 rounded-xl text-xs font-bold text-white transition ${diarySaved ? "bg-[#C5E8D8] text-gray-700" : "bg-[#F9C6D0] hover:opacity-90"}`}
+              className={`w-full p-2.5 rounded-xl text-xs font-bold transition ${diarySaved ? "bg-[#C5E8D8] text-gray-700" : "bg-[#F9C6D0] text-white hover:opacity-90"}`}
             >
               {diarySaved ? "保存済み ✓" : "保存する"}
             </button>
@@ -403,6 +406,9 @@ export default function Home() {
             <h2 className="text-xs font-extrabold text-gray-700">
               📅 6月の食事カレンダー
             </h2>
+            <p className="text-[10px] text-gray-400">
+              📌 日付をタップすると過去の記録を追加できるよ
+            </p>
             <div className="grid grid-cols-7 gap-1 text-center">
               {["月", "火", "水", "木", "金", "土", "日"].map((d) => (
                 <span key={d} className="text-[10px] text-gray-400 font-bold">
@@ -413,20 +419,25 @@ export default function Home() {
                 const day = i + 1;
                 const dateKey = `2026-06-${String(day).padStart(2, "0")}`;
                 const history = mealHistory[dateKey] || [];
-                const isToday = day === 7;
+                const isToday = dateKey === todayKey;
+                const isSelected = selectedDay === dateKey;
 
-                let bgColor = "bg-transparent";
-                if (isToday) bgColor = "bg-[#F9C6D0]";
-                else if (history.length === 3) bgColor = "bg-[#C5E8D8]";
-                else if (history.length > 0) bgColor = "bg-[#FBF0B2]";
+                let bgColor = "bg-transparent hover:bg-[#FFF0F3]";
+                if (isSelected) bgColor = "bg-[#D9768A]";
+                else if (isToday) bgColor = "bg-[#F9C6D0]";
+                else if (history.length >= 3)
+                  bgColor = "bg-[#C5E8D8] hover:opacity-80";
+                else if (history.length > 0)
+                  bgColor = "bg-[#FBF0B2] hover:opacity-80";
 
                 return (
                   <div
                     key={day}
-                    className={`aspect-square flex items-center justify-center rounded-full ${bgColor}`}
+                    className={`aspect-square flex items-center justify-center rounded-full cursor-pointer transition ${bgColor}`}
+                    onClick={() => setSelectedDay(isSelected ? null : dateKey)}
                   >
                     <span
-                      className={`text-[10px] font-semibold ${isToday ? "text-[#c0506a] font-bold" : "text-gray-700"}`}
+                      className={`text-[10px] font-semibold ${isSelected ? "text-white" : isToday ? "text-[#c0506a] font-bold" : "text-gray-700"}`}
                     >
                       {day}
                     </span>
@@ -434,6 +445,59 @@ export default function Home() {
                 );
               })}
             </div>
+
+            {/* 過去の記録入力 */}
+            {selectedDay && (
+              <div className="mt-2 space-y-2 border-t border-[#F0E8F0] pt-3">
+                <p className="text-xs font-bold text-[#7a3545]">
+                  {selectedDay.replace(
+                    /\d{4}-(\d{2})-(\d{2})/,
+                    (_, m, d) => `${parseInt(m)}月${parseInt(d)}日`,
+                  )}
+                  の記録を追加
+                </p>
+                <input
+                  type="text"
+                  placeholder="例：ランチにパスタを食べた"
+                  className="w-full bg-[#FFF5F7] rounded-xl p-2.5 text-xs border border-[#F9C6D0] focus:outline-none"
+                  value={pastMealInput}
+                  onChange={(e) => setPastMealInput(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={addPastMeal}
+                    className="flex-1 bg-[#F9C6D0] text-[#7a3545] rounded-xl p-2 text-xs font-bold hover:opacity-80"
+                  >
+                    記録する
+                  </button>
+                  <button
+                    onClick={() => setSelectedDay(null)}
+                    className="px-4 bg-gray-100 text-gray-500 rounded-xl p-2 text-xs hover:opacity-80"
+                  >
+                    閉じる
+                  </button>
+                </div>
+                {mealHistory[selectedDay]?.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    <p className="text-[10px] text-gray-400">この日の記録：</p>
+                    {mealHistory[selectedDay].map((m, idx) => (
+                      <p
+                        key={idx}
+                        className="text-[10px] text-[#7a3545] bg-[#FFF5F7] rounded-lg px-2 py-1"
+                      >
+                        {m === "breakfast"
+                          ? "🌅 朝ごはん"
+                          : m === "lunch"
+                            ? "☀️ 昼ごはん"
+                            : m === "dinner"
+                              ? "🌙 夜ごはん"
+                              : "📝 " + m}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 凡例 */}
             <div className="flex gap-3 justify-center text-[9px] text-gray-400 pt-1">
