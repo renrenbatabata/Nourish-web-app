@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { db } from "../../firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { ScreenHeader } from "../components/ScreenHeader";
 
 import { useDateRange } from "../hooks/useDateRange";
 import { usePDFExport } from "../hooks/usePDFExport";
+import { useAuth } from "../hooks/useAuth";
 
 type FirestoreMeal = {
   id: string;
@@ -57,6 +58,7 @@ const mealLabels: Record<string, MealLabel> = {
 const toDateKey = (isoString: string) => isoString.split("T")[0];
 
 export default function History() {
+  const { user } = useAuth();
   const {
     startDate,
     endDate,
@@ -77,8 +79,18 @@ export default function History() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const mealsSnap = await getDocs(collection(db, "meals"));
-        const diarySnap = await getDocs(collection(db, "diary"));
+        const mealsSnap = await getDocs(
+          query(
+            collection(db, "meals"),
+            where("uid", "==", user?.uid ?? "anonymous"),
+          ),
+        );
+        const diarySnap = await getDocs(
+          query(
+            collection(db, "diary"),
+            where("uid", "==", user?.uid ?? "anonymous"),
+          ),
+        );
         setFirestoreMeals(
           mealsSnap.docs.map(
             (d) => ({ id: d.id, ...d.data() }) as FirestoreMeal,
@@ -96,7 +108,7 @@ export default function History() {
       }
     };
     fetchData();
-  }, []);
+  }, [user?.uid]);
 
   const mealsByDate: Record<string, FirestoreMeal[]> = {};
   firestoreMeals.forEach((meal) => {

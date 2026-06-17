@@ -6,6 +6,7 @@ import Image from "next/image";
 import { db } from "../firebase";
 import { collection, addDoc } from "firebase/firestore";
 import { useAnalyzeFood } from "./hooks/useAnalyzeFood";
+import { useAuth } from "./hooks/useAuth";
 
 type Meal = {
   photo: string | null;
@@ -27,6 +28,7 @@ type Snack = {
 };
 
 export default function Home() {
+  const { user } = useAuth();
   const [meals, setMeals] = useState<Meals>({
     breakfast: { photo: null, message: "朝から脳にエネルギーを届けられたね！" },
     lunch: {
@@ -146,6 +148,7 @@ export default function Home() {
       mealType: mealKey,
       photoUri: fakeUri,
       date: new Date().toISOString(),
+      uid: user?.uid ?? "anonymous",
     });
 
     await analyzeFood(fakeUri, mealKey);
@@ -167,6 +170,7 @@ export default function Home() {
     await addDoc(collection(db, "snacks"), {
       note: snackInput,
       date: new Date().toISOString(),
+      uid: user?.uid ?? "anonymous",
     });
     setSnackInput("");
   };
@@ -207,6 +211,7 @@ export default function Home() {
     await addDoc(collection(db, "diary"), {
       note: diaryNote,
       date: new Date().toISOString(),
+      uid: user?.uid ?? "anonymous",
     });
     setDiarySaved(true);
     alert("日記を保存したよ🌸");
