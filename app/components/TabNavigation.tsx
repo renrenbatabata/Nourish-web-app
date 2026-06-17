@@ -12,6 +12,7 @@ export function TabNavigation() {
     { icon: "📅", label: "記録", path: "/history" },
     { icon: "📖", label: "食材図鑑", path: "/foodbook" },
     { icon: "🥦", label: "栄養素", path: "/nutrition" },
+    { icon: "⚙️", label: "設定", path: "/settings" },
   ];
 
   return (
