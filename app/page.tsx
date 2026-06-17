@@ -1,11 +1,12 @@
 "use client";
-import { ScreenHeader } from "./components/ScreenHeader";
+
 import { useState } from "react";
+import { ScreenHeader } from "./components/ScreenHeader";
 import Image from "next/image";
 import { db } from "../firebase";
 import { collection, addDoc } from "firebase/firestore";
+import { useAnalyzeFood } from "./hooks/useAnalyzeFood";
 
-// --- 型定義 ---
 type Meal = {
   photo: string | null;
   message: string;
@@ -26,7 +27,6 @@ type Snack = {
 };
 
 export default function Home() {
-  // --- ステート管理 ---
   const [meals, setMeals] = useState<Meals>({
     breakfast: { photo: null, message: "朝から脳にエネルギーを届けられたね！" },
     lunch: {
@@ -46,19 +46,19 @@ export default function Home() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [pastMealInput, setPastMealInput] = useState("");
 
+  const { analyzeFood, analyzeFoodFree } = useAnalyzeFood(setMeals);
+
   const [mealHistory, setMealHistory] = useState<Record<string, string[]>>({
     "2026-06-04": ["breakfast", "lunch", "dinner"],
     "2026-06-05": ["breakfast", "lunch"],
     "2026-06-06": ["breakfast"],
   });
 
-  // 今日の日付ラベル
   const todayDate = new Date();
   const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
   const todayLabel = `今日 ${todayDate.getMonth() + 1}月${todayDate.getDate()}日（${dayNames[todayDate.getDay()]}）`;
   const todayKey = todayDate.toISOString().split("T")[0];
 
-  // --- 定数・設定 ---
   const mealConfig = [
     {
       key: "breakfast" as keyof Meals,
@@ -124,7 +124,6 @@ export default function Home() {
     },
   ];
 
-  // --- ハンドラー ---
   const handleMealImageChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
     mealKey: keyof Meals,
@@ -132,19 +131,24 @@ export default function Home() {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     const fakeUri = URL.createObjectURL(file);
+
     setMeals((prev) => ({
       ...prev,
-      [mealKey]: { ...prev[mealKey], photo: fakeUri },
+      [mealKey]: { ...prev[mealKey], photo: fakeUri, message: "分析中...🌸" },
     }));
+
     setMealHistory((prev) => ({
       ...prev,
       [todayKey]: [...(prev[todayKey] || []), mealKey],
     }));
+
     await addDoc(collection(db, "meals"), {
       mealType: mealKey,
       photoUri: fakeUri,
       date: new Date().toISOString(),
     });
+
+    await analyzeFood(fakeUri, mealKey);
   };
 
   const addSnack = async () => {
@@ -174,18 +178,28 @@ export default function Home() {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     const fakeUri = URL.createObjectURL(file);
+
     setSnacks((prev) =>
       prev.map((s) =>
         s.id === snackId ? { ...s, photo: fakeUri, message: "分析中...🌸" } : s,
       ),
     );
-    setTimeout(() => {
-      setSnacks((prev) =>
-        prev.map((s) =>
-          s.id === snackId ? { ...s, message: "記録できたね🌸" } : s,
-        ),
-      );
-    }, 1500);
+
+    await analyzeFoodFree(
+      fakeUri,
+      (msg) => {
+        setSnacks((prev) =>
+          prev.map((s) => (s.id === snackId ? { ...s, message: msg } : s)),
+        );
+      },
+      () => {
+        setSnacks((prev) =>
+          prev.map((s) =>
+            s.id === snackId ? { ...s, message: "記録できたね🌸" } : s,
+          ),
+        );
+      },
+    );
   };
 
   const saveDiary = async () => {
@@ -215,20 +229,18 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#FDF6F0] px-0 text-[#4a3f3a] font-sans antialiased pb-10">
-      <div className="max-w-md mx-auto space-y-4">
+      <div className="max-w-md mx-auto">
         <ScreenHeader source="/header.png" height={100} />
 
         <div className="p-4 space-y-4">
-          {/* 日付ラベル */}
           <div className="flex items-center gap-2 py-1">
             <div className="h-px flex-1 bg-[#F9C6D0]" />
             <p className="text-sm font-bold tracking-wider text-[#7a3545] px-2">
-              {todayLabel}
+              {todayLabel || "今日"}
             </p>
             <div className="h-px flex-1 bg-[#F9C6D0]" />
           </div>
 
-          {/* 1. 食事カード行 */}
           <div className="flex gap-2">
             {mealConfig.map((meal) => {
               const data = meals[meal.key];
@@ -246,7 +258,7 @@ export default function Home() {
                   {data.photo ? (
                     <div className="mt-2 flex flex-col gap-1">
                       <Image
-                        src={data.photo!}
+                        src={data.photo}
                         alt={meal.label}
                         width={400}
                         height={80}
@@ -289,7 +301,6 @@ export default function Home() {
             })}
           </div>
 
-          {/* 2. 間食・ドリンク記録 */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#FBF0B2] space-y-3 shadow-sm">
             <h2 className="text-sm font-extrabold text-[#7a6010]">
               🍵 間食・ドリンク記録
@@ -352,7 +363,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 3. 今日の一言日記 */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#F9C6D0] space-y-2 shadow-sm">
             <h2 className="text-sm font-extrabold text-[#D9768A]">
               📝 今日の一言日記
@@ -377,7 +387,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* 4. 栄養バランスカード */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#E8E0F8] space-y-3 shadow-sm">
             <h2 className="text-xs font-extrabold text-[#3d2d7a]">
               🌿 今日の栄養バランス
@@ -401,7 +410,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 5. カレンダーカード */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#E8E0F8] space-y-3 shadow-sm">
             <h2 className="text-xs font-extrabold text-gray-700">
               📅 6月の食事カレンダー
@@ -446,7 +454,6 @@ export default function Home() {
               })}
             </div>
 
-            {/* 過去の記録入力 */}
             {selectedDay && (
               <div className="mt-2 space-y-2 border-t border-[#F0E8F0] pt-3">
                 <p className="text-xs font-bold text-[#7a3545]">
@@ -477,10 +484,10 @@ export default function Home() {
                     閉じる
                   </button>
                 </div>
-                {mealHistory[selectedDay]?.length > 0 && (
+                {(mealHistory[selectedDay] || []).length > 0 && (
                   <div className="space-y-1 pt-1">
                     <p className="text-[10px] text-gray-400">この日の記録：</p>
-                    {mealHistory[selectedDay].map((m, idx) => (
+                    {(mealHistory[selectedDay] || []).map((m, idx) => (
                       <p
                         key={idx}
                         className="text-[10px] text-[#7a3545] bg-[#FFF5F7] rounded-lg px-2 py-1"
@@ -499,7 +506,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* 凡例 */}
             <div className="flex gap-3 justify-center text-[9px] text-gray-400 pt-1">
               <div className="flex items-center gap-1">
                 <div className="w-2.5 h-2.5 rounded-full bg-[#C5E8D8]" />
