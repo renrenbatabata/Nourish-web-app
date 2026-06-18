@@ -28,7 +28,7 @@ type Snack = {
 };
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth(true);
   const [meals, setMeals] = useState<Meals>({
     breakfast: { photo: null, message: "朝から脳にエネルギーを届けられたね！" },
     lunch: {
@@ -55,7 +55,7 @@ export default function Home() {
     "2026-06-05": ["breakfast", "lunch"],
     "2026-06-06": ["breakfast"],
   });
-
+  if (loading) return null;
   const todayDate = new Date();
   const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
   const todayLabel = `今日 ${todayDate.getMonth() + 1}月${todayDate.getDate()}日（${dayNames[todayDate.getDay()]}）`;

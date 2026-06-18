@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 export function TabNavigation() {
   const pathname = usePathname();
+  if (pathname === "/login") return null;
 
   // メニューの項目設定（アイコン、ラベル、リンク先）
   const navItems = [

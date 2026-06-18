@@ -58,7 +58,8 @@ const mealLabels: Record<string, MealLabel> = {
 const toDateKey = (isoString: string) => isoString.split("T")[0];
 
 export default function History() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth(true);
+
   const {
     startDate,
     endDate,
@@ -74,7 +75,7 @@ export default function History() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [firestoreMeals, setFirestoreMeals] = useState<FirestoreMeal[]>([]);
   const [firestoreDiary, setFirestoreDiary] = useState<FirestoreDiary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -104,7 +105,7 @@ export default function History() {
       } catch (e) {
         console.error(e);
       } finally {
-        setLoading(false);
+        setDataLoading(false);
       }
     };
     fetchData();
@@ -137,7 +138,7 @@ export default function History() {
     const d = new Date(isoString);
     return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
   };
-
+  if (loading) return null;
   return (
     <div className="min-h-screen bg-[#FDF6F0] px-0 text-[#4a3f3a] font-sans antialiased pb-10">
       <div className="max-w-md mx-auto">
@@ -147,7 +148,7 @@ export default function History() {
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#E8E0F8] space-y-3 shadow-sm">
             <h2 className="text-sm font-extrabold text-[#4a3f3a]">6月</h2>
 
-            {loading ? (
+            {dataLoading ? ( // loading → dataLoading
               <p className="text-center text-xs text-gray-400">読み込み中...</p>
             ) : (
               <>
