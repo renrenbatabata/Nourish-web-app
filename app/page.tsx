@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScreenHeader } from "./components/ScreenHeader";
 import Image from "next/image";
 import { db } from "../firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc } from "firebase/firestore";
 import { useAnalyzeFood } from "./hooks/useAnalyzeFood";
 import { useAuth } from "./hooks/useAuth";
 
@@ -27,6 +27,20 @@ type Snack = {
   message: string;
 };
 
+type NutritionScores = {
+  carbs: number;
+  fat: number;
+  protein: number;
+  vitamin: number;
+  mineral: number;
+};
+
+type Profile = {
+  age: string;
+  gender: string;
+  activityLevel: string;
+};
+
 export default function Home() {
   const { user, loading } = useAuth(true);
   const [meals, setMeals] = useState<Meals>({
@@ -47,14 +61,39 @@ export default function Home() {
   const [diarySaved, setDiarySaved] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [pastMealInput, setPastMealInput] = useState("");
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [nutritionScores, setNutritionScores] = useState<NutritionScores>({
+    carbs: 0,
+    fat: 0,
+    protein: 0,
+    vitamin: 0,
+    mineral: 0,
+  });
 
-  const { analyzeFood, analyzeFoodFree } = useAnalyzeFood(setMeals);
+  const { analyzeFood, analyzeFoodFree, analyzeNutrition } =
+    useAnalyzeFood(setMeals);
 
   const [mealHistory, setMealHistory] = useState<Record<string, string[]>>({
     "2026-06-04": ["breakfast", "lunch", "dinner"],
     "2026-06-05": ["breakfast", "lunch"],
     "2026-06-06": ["breakfast"],
   });
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+      try {
+        const snap = await getDoc(doc(db, "users", user.uid));
+        if (snap.exists()) {
+          setProfile(snap.data() as Profile);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    if (user) fetchProfile();
+  }, [user]);
+
   if (loading) return null;
 
   const todayDate = new Date();
@@ -89,41 +128,43 @@ export default function Home() {
     },
   ];
 
+  const getNutrientComment = (score: number) => {
+    if (score >= 80) return "すごい！しっかり摂れてるよ✨";
+    if (score >= 50) return "いい感じ！このまま続けよう🌿";
+    if (score >= 20) return "もう少し！食事で補えるよ🌸";
+    return "食事を記録すると更新されるよ";
+  };
+
   const nutrients = [
     {
       label: "🌾 炭水化物",
       hint: "脳のガソリン",
       color: "bg-[#FAC775]",
-      width: "80%",
-      comment: "いい感じ！集中力を支えてくれてるよ",
+      score: nutritionScores.carbs,
     },
     {
       label: "🥑 脂質",
       hint: "細胞のバリア",
       color: "bg-[#F5C4B3]",
-      width: "55%",
-      comment: "もう少し。ナッツやアボカドもいいよ🥑",
+      score: nutritionScores.fat,
     },
     {
       label: "🍗 タンパク質",
       hint: "髪・肌・筋肉の材料",
       color: "bg-[#9FE1CB]",
-      width: "75%",
-      comment: "いい調子！髪がツヤツヤになってくるよ✨",
+      score: nutritionScores.protein,
     },
     {
       label: "🥦 ビタミン",
       hint: "肌と免疫を守る",
       color: "bg-[#C0DD97]",
-      width: "90%",
-      comment: "すごい！肌がきれいになってる途中🌿",
+      score: nutritionScores.vitamin,
     },
     {
       label: "🦴 ミネラル",
       hint: "骨・血液を作る",
       color: "bg-[#B5D4F4]",
-      width: "60%",
-      comment: "乳製品や小魚があると嬉しい🐟",
+      score: nutritionScores.mineral,
     },
   ];
 
@@ -161,7 +202,23 @@ export default function Home() {
       uid: user?.uid ?? "anonymous",
     });
 
-    await analyzeFood(base64, mealKey);
+    // コメント分析と栄養スコア分析を並列実行
+    await Promise.all([
+      analyzeFood(base64, mealKey),
+      profile
+        ? analyzeNutrition(base64, profile).then((scores) => {
+            if (scores) {
+              setNutritionScores((prev) => ({
+                carbs: Math.min(100, prev.carbs + scores.carbs),
+                fat: Math.min(100, prev.fat + scores.fat),
+                protein: Math.min(100, prev.protein + scores.protein),
+                vitamin: Math.min(100, prev.vitamin + scores.vitamin),
+                mineral: Math.min(100, prev.mineral + scores.mineral),
+              }));
+            }
+          })
+        : Promise.resolve(),
+    ]);
   };
 
   const handleSnackImageChange = async (
@@ -188,18 +245,16 @@ export default function Home() {
 
     await analyzeFoodFree(
       base64,
-      (msg) => {
+      (msg) =>
         setSnacks((prev) =>
           prev.map((s) => (s.id === snackId ? { ...s, message: msg } : s)),
-        );
-      },
-      () => {
+        ),
+      () =>
         setSnacks((prev) =>
           prev.map((s) =>
             s.id === snackId ? { ...s, message: "記録できたね🌸" } : s,
           ),
-        );
-      },
+        ),
     );
   };
 
@@ -254,7 +309,6 @@ export default function Home() {
     <div className="min-h-screen bg-[#FDF6F0] px-0 text-[#4a3f3a] font-sans antialiased pb-10">
       <div className="max-w-md mx-auto">
         <ScreenHeader source="/header.png" height={100} />
-
         <div className="p-4 space-y-4">
           <div className="flex items-center gap-2 py-1">
             <div className="h-px flex-1 bg-[#F9C6D0]" />
@@ -264,13 +318,14 @@ export default function Home() {
             <div className="h-px flex-1 bg-[#F9C6D0]" />
           </div>
 
+          {/* 食事カード */}
           <div className="flex gap-2">
             {mealConfig.map((meal) => {
               const data = meals[meal.key];
               return (
                 <div
                   key={meal.key}
-                  className={`flex-1 rounded-2xl border-[1.5px] p-2 flex flex-col  ${meal.borderColor} ${meal.bgColor}`}
+                  className={`flex-1 rounded-2xl border-[1.5px] p-2 flex flex-col ${meal.borderColor} ${meal.bgColor}`}
                 >
                   <div
                     className={`flex items-center gap-1 px-2 py-0.5 rounded-full self-start ${meal.tagColor}`}
@@ -284,28 +339,29 @@ export default function Home() {
                         src={data.photo}
                         alt={meal.label}
                         width={400}
-                        height={80}
+                        height={200}
                         className="w-full h-20 object-cover rounded-xl"
                         unoptimized
                       />
-                      <p
-                        className={`text-[9px] text-[#7a6070] leading-tight cursor-pointer ${expandedMeal === meal.key ? "" : "line-clamp-3"}`}
+                      <div
+                        className="cursor-pointer"
                         onClick={() =>
                           setExpandedMeal(
                             expandedMeal === meal.key ? null : meal.key,
                           )
                         }
                       >
-                        {data.message}
-                      </p>
-                      {!expandedMeal && (
-                        <span
-                          className="text-[8px] text-[#D9768A] cursor-pointer"
-                          onClick={() => setExpandedMeal(meal.key)}
+                        <p
+                          className={`text-[9px] text-[#7a6070] leading-tight ${expandedMeal === meal.key ? "" : "line-clamp-3"}`}
                         >
-                          続きを見る
+                          {data.message}
+                        </p>
+                        <span className="text-[8px] text-[#D9768A]">
+                          {expandedMeal === meal.key
+                            ? "閉じる ▲"
+                            : "続きを見る ▼"}
                         </span>
-                      )}
+                      </div>
                       <label className="text-center text-[9px] text-gray-400 cursor-pointer block mt-1 hover:text-gray-600">
                         変更
                         <input
@@ -339,6 +395,16 @@ export default function Home() {
             })}
           </div>
 
+          {/* プロフィール未設定の案内 */}
+          {!profile?.age && (
+            <div className="bg-[#FFF5F7] rounded-2xl p-3 border border-[#F9C6D0] text-center">
+              <p className="text-[10px] text-[#D9768A]">
+                ⚙️ 設定からプロフィールを登録すると栄養バランスが分析されるよ🌸
+              </p>
+            </div>
+          )}
+
+          {/* 間食・ドリンク記録 */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#FBF0B2] space-y-3 shadow-sm">
             <h2 className="text-sm font-extrabold text-[#7a6010]">
               🍵 間食・ドリンク記録
@@ -401,6 +467,7 @@ export default function Home() {
             </div>
           </div>
 
+          {/* 今日の一言日記 */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#F9C6D0] space-y-2 shadow-sm">
             <h2 className="text-sm font-extrabold text-[#D9768A]">
               📝 今日の一言日記
@@ -425,6 +492,7 @@ export default function Home() {
             </button>
           </div>
 
+          {/* 栄養バランス */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#E8E0F8] space-y-3 shadow-sm">
             <h2 className="text-xs font-extrabold text-[#3d2d7a]">
               🌿 今日の栄養バランス
@@ -438,16 +506,19 @@ export default function Home() {
                   </div>
                   <div className="h-2 w-full bg-[#F0EEF8] rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${n.color}`}
-                      style={{ width: n.width }}
+                      className={`h-full rounded-full transition-all duration-700 ${n.color}`}
+                      style={{ width: `${n.score}%` }}
                     />
                   </div>
-                  <p className="text-[9px] text-gray-400 mt-0.5">{n.comment}</p>
+                  <p className="text-[9px] text-gray-400 mt-0.5">
+                    {getNutrientComment(n.score)}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
 
+          {/* カレンダー */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#E8E0F8] space-y-3 shadow-sm">
             <h2 className="text-xs font-extrabold text-gray-700">
               📅 6月の食事カレンダー
@@ -467,7 +538,6 @@ export default function Home() {
                 const history = mealHistory[dateKey] || [];
                 const isToday = dateKey === todayKey;
                 const isSelected = selectedDay === dateKey;
-
                 let bgColor = "bg-transparent hover:bg-[#FFF0F3]";
                 if (isSelected) bgColor = "bg-[#D9768A]";
                 else if (isToday) bgColor = "bg-[#F9C6D0]";
@@ -475,7 +545,6 @@ export default function Home() {
                   bgColor = "bg-[#C5E8D8] hover:opacity-80";
                 else if (history.length > 0)
                   bgColor = "bg-[#FBF0B2] hover:opacity-80";
-
                 return (
                   <div
                     key={day}
@@ -491,7 +560,6 @@ export default function Home() {
                 );
               })}
             </div>
-
             {selectedDay && (
               <div className="mt-2 space-y-2 border-t border-[#F0E8F0] pt-3">
                 <p className="text-xs font-bold text-[#7a3545]">
@@ -543,7 +611,6 @@ export default function Home() {
                 )}
               </div>
             )}
-
             <div className="flex gap-3 justify-center text-[9px] text-gray-400 pt-1">
               <div className="flex items-center gap-1">
                 <div className="w-2.5 h-2.5 rounded-full bg-[#C5E8D8]" />

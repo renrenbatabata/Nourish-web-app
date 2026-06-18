@@ -11,6 +11,20 @@ type Meals = {
   dinner: Meal;
 };
 
+type NutritionScores = {
+  carbs: number;
+  fat: number;
+  protein: number;
+  vitamin: number;
+  mineral: number;
+};
+
+type Profile = {
+  age: string;
+  gender: string;
+  activityLevel: string;
+};
+
 export const useAnalyzeFood = (setMeals: Dispatch<SetStateAction<Meals>>) => {
   const analyzeFood = async (imageUri: string, mealKey: keyof Meals) => {
     try {
@@ -20,13 +34,11 @@ export const useAnalyzeFood = (setMeals: Dispatch<SetStateAction<Meals>>) => {
         body: JSON.stringify({
           imageUri,
           prompt:
-            "この食事や飲み物の写真を見て、含まれている食材や成分が体にもたらす嬉しい効果を、優しく温かい言葉で教えてください。数字やカロリーは使わず、「〇〇が肌をきれいにしてくれるよ」のような言葉で伝えてください。Markdownは使わず、プレーンテキストで回答してください。",
+            "この食事や飲み物の写真を見て、含まれている食材や成分が体にもたらす嬉しい効果を、優しく温かい言葉で教えてください。数字やカロリーは使わず、「〇〇が肌をきれいにしてくれるよ」のような言葉で伝えてください。150文字以内のプレーンテキストで回答してください。Markdownは使わず、プレーンテキストで回答してください。",
         }),
       });
       const data = await response.json();
-      console.log(data)
       const message = data.content[0].text;
-      console.log(message)
       setMeals((prev) => ({
         ...prev,
         [mealKey]: { ...prev[mealKey], message },
@@ -63,5 +75,28 @@ export const useAnalyzeFood = (setMeals: Dispatch<SetStateAction<Meals>>) => {
     }
   };
 
-  return { analyzeFood, analyzeFoodFree };
+  const analyzeNutrition = async (
+    imageUri: string,
+    profile: Profile,
+  ): Promise<NutritionScores | null> => {
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUri,
+          age: profile.age,
+          gender: profile.gender,
+          activityLevel: profile.activityLevel,
+        }),
+      });
+      const data = await response.json();
+      console.log("栄養スコア分析結果:", data);
+      return data as NutritionScores;
+    } catch {
+      return null;
+    }
+  };
+
+  return { analyzeFood, analyzeFoodFree, analyzeNutrition };
 };
