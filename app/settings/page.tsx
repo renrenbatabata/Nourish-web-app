@@ -182,12 +182,6 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <div className="bg-[#FFF5F7] rounded-xl p-3 space-y-1">
-                  <p className="text-[10px] text-gray-400">ユーザーID</p>
-                  <p className="text-[10px] text-gray-500 break-all">
-                    {user.uid}
-                  </p>
-                </div>
-                <div className="bg-[#FFF5F7] rounded-xl p-3 space-y-1">
                   <p className="text-[10px] text-gray-400">ログイン方法</p>
                   <p className="text-xs font-bold">
                     {user.providerData[0]

@@ -5,6 +5,8 @@ import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
 import { useEffect } from "react";
+import { db } from "../../firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function Login() {
   const router = useRouter();
@@ -19,13 +21,20 @@ export default function Login() {
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      router.push("/");
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // プロフィールが未設定なら /onboarding へ
+      const snap = await getDoc(doc(db, "users", user.uid));
+      if (!snap.exists() || !snap.data()?.age) {
+        router.push("/onboarding");
+      } else {
+        router.push("/");
+      }
     } catch (error) {
       console.error("Googleログインエラー:", error);
     }
   };
-
   if (loading) return null;
 
   return (
