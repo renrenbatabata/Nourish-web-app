@@ -40,7 +40,7 @@ export default function Home() {
       message: "夜ごはんも食べられたね。今日もよく頑張ったね🌙",
     },
   });
-
+  const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
   const [snacks, setSnacks] = useState<Snack[]>([]);
   const [snackInput, setSnackInput] = useState("");
   const [diaryNote, setDiaryNote] = useState("");
@@ -56,6 +56,7 @@ export default function Home() {
     "2026-06-06": ["breakfast"],
   });
   if (loading) return null;
+
   const todayDate = new Date();
   const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
   const todayLabel = `今日 ${todayDate.getMonth() + 1}月${todayDate.getDate()}日（${dayNames[todayDate.getDay()]}）`;
@@ -132,11 +133,21 @@ export default function Home() {
   ) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
-    const fakeUri = URL.createObjectURL(file);
+    const previewUrl = URL.createObjectURL(file);
+
+    const base64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
 
     setMeals((prev) => ({
       ...prev,
-      [mealKey]: { ...prev[mealKey], photo: fakeUri, message: "分析中...🌸" },
+      [mealKey]: {
+        ...prev[mealKey],
+        photo: previewUrl,
+        message: "分析中...🌸",
+      },
     }));
 
     setMealHistory((prev) => ({
@@ -146,12 +157,50 @@ export default function Home() {
 
     await addDoc(collection(db, "meals"), {
       mealType: mealKey,
-      photoUri: fakeUri,
       date: new Date().toISOString(),
       uid: user?.uid ?? "anonymous",
     });
 
-    await analyzeFood(fakeUri, mealKey);
+    await analyzeFood(base64, mealKey);
+  };
+
+  const handleSnackImageChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    snackId: string,
+  ) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    const previewUrl = URL.createObjectURL(file);
+
+    const base64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+
+    setSnacks((prev) =>
+      prev.map((s) =>
+        s.id === snackId
+          ? { ...s, photo: previewUrl, message: "分析中...🌸" }
+          : s,
+      ),
+    );
+
+    await analyzeFoodFree(
+      base64,
+      (msg) => {
+        setSnacks((prev) =>
+          prev.map((s) => (s.id === snackId ? { ...s, message: msg } : s)),
+        );
+      },
+      () => {
+        setSnacks((prev) =>
+          prev.map((s) =>
+            s.id === snackId ? { ...s, message: "記録できたね🌸" } : s,
+          ),
+        );
+      },
+    );
   };
 
   const addSnack = async () => {
@@ -173,37 +222,6 @@ export default function Home() {
       uid: user?.uid ?? "anonymous",
     });
     setSnackInput("");
-  };
-
-  const handleSnackImageChange = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    snackId: string,
-  ) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    const file = e.target.files[0];
-    const fakeUri = URL.createObjectURL(file);
-
-    setSnacks((prev) =>
-      prev.map((s) =>
-        s.id === snackId ? { ...s, photo: fakeUri, message: "分析中...🌸" } : s,
-      ),
-    );
-
-    await analyzeFoodFree(
-      fakeUri,
-      (msg) => {
-        setSnacks((prev) =>
-          prev.map((s) => (s.id === snackId ? { ...s, message: msg } : s)),
-        );
-      },
-      () => {
-        setSnacks((prev) =>
-          prev.map((s) =>
-            s.id === snackId ? { ...s, message: "記録できたね🌸" } : s,
-          ),
-        );
-      },
-    );
   };
 
   const saveDiary = async () => {
@@ -252,7 +270,7 @@ export default function Home() {
               return (
                 <div
                   key={meal.key}
-                  className={`flex-1 rounded-2xl border-[1.5px] p-2 flex flex-col justify-between ${meal.borderColor} ${meal.bgColor}`}
+                  className={`flex-1 rounded-2xl border-[1.5px] p-2 flex flex-col  ${meal.borderColor} ${meal.bgColor}`}
                 >
                   <div
                     className={`flex items-center gap-1 px-2 py-0.5 rounded-full self-start ${meal.tagColor}`}
@@ -261,7 +279,7 @@ export default function Home() {
                     <span className="text-[9px] font-bold">{meal.label}</span>
                   </div>
                   {data.photo ? (
-                    <div className="mt-2 flex flex-col gap-1">
+                    <div className="mt-2 flex flex-col gap-1 overflow-hidden">
                       <Image
                         src={data.photo}
                         alt={meal.label}
@@ -270,9 +288,24 @@ export default function Home() {
                         className="w-full h-20 object-cover rounded-xl"
                         unoptimized
                       />
-                      <p className="text-[9px] text-[#7a6070] leading-tight h-9 overflow-hidden">
+                      <p
+                        className={`text-[9px] text-[#7a6070] leading-tight cursor-pointer ${expandedMeal === meal.key ? "" : "line-clamp-3"}`}
+                        onClick={() =>
+                          setExpandedMeal(
+                            expandedMeal === meal.key ? null : meal.key,
+                          )
+                        }
+                      >
                         {data.message}
                       </p>
+                      {!expandedMeal && (
+                        <span
+                          className="text-[8px] text-[#D9768A] cursor-pointer"
+                          onClick={() => setExpandedMeal(meal.key)}
+                        >
+                          続きを見る
+                        </span>
+                      )}
                       <label className="text-center text-[9px] text-gray-400 cursor-pointer block mt-1 hover:text-gray-600">
                         変更
                         <input

@@ -20,11 +20,13 @@ export const useAnalyzeFood = (setMeals: Dispatch<SetStateAction<Meals>>) => {
         body: JSON.stringify({
           imageUri,
           prompt:
-            "この食事や飲み物の写真を見て、含まれている食材や成分が体にもたらす嬉しい効果を、優しく温かい言葉で教えてください。数字やカロリーは使わず、「〇〇が肌をきれいにしてくれるよ」のような言葉で伝えてください。",
+            "この食事や飲み物の写真を見て、含まれている食材や成分が体にもたらす嬉しい効果を、優しく温かい言葉で教えてください。数字やカロリーは使わず、「〇〇が肌をきれいにしてくれるよ」のような言葉で伝えてください。Markdownは使わず、プレーンテキストで回答してください。",
         }),
       });
       const data = await response.json();
+      console.log(data)
       const message = data.content[0].text;
+      console.log(message)
       setMeals((prev) => ({
         ...prev,
         [mealKey]: { ...prev[mealKey], message },
