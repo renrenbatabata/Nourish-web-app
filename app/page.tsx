@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ScreenHeader } from "./components/ScreenHeader";
 import Image from "next/image";
 import { db } from "../firebase";
-import { collection, addDoc, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { useAnalyzeFood } from "./hooks/useAnalyzeFood";
 import { useAuth } from "./hooks/useAuth";
 
@@ -45,14 +45,8 @@ export default function Home() {
   const { user, loading } = useAuth(true);
   const [meals, setMeals] = useState<Meals>({
     breakfast: { photo: null, message: "朝から脳にエネルギーを届けられたね！" },
-    lunch: {
-      photo: null,
-      message: "お昼もしっかり食べられたね。体が喜んでいるよ！",
-    },
-    dinner: {
-      photo: null,
-      message: "夜ごはんも食べられたね。今日もよく頑張ったね🌙",
-    },
+    lunch: { photo: null, message: "お昼もしっかり食べられたね。体が喜んでいるよ！" },
+    dinner: { photo: null, message: "夜ごはんも食べられたね。今日もよく頑張ったね🌙" },
   });
   const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
   const [snacks, setSnacks] = useState<Snack[]>([]);
@@ -63,30 +57,33 @@ export default function Home() {
   const [pastMealInput, setPastMealInput] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [nutritionScores, setNutritionScores] = useState<NutritionScores>({
-    carbs: 0,
-    fat: 0,
-    protein: 0,
-    vitamin: 0,
-    mineral: 0,
+    carbs: 0, fat: 0, protein: 0, vitamin: 0, mineral: 0,
   });
+  const [mealHistory, setMealHistory] = useState<Record<string, string[]>>({});
 
-  const { analyzeFood, analyzeFoodFree, analyzeNutrition } =
-    useAnalyzeFood(setMeals);
+  const { analyzeFood, analyzeFoodFree, analyzeNutrition } = useAnalyzeFood(setMeals);
 
-  const [mealHistory, setMealHistory] = useState<Record<string, string[]>>({
-    "2026-06-04": ["breakfast", "lunch", "dinner"],
-    "2026-06-05": ["breakfast", "lunch"],
-    "2026-06-06": ["breakfast"],
-  });
+  // 今日の日付情報
+  const todayDate = new Date();
+  const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
+  const todayLabel = `今日 ${todayDate.getMonth() + 1}月${todayDate.getDate()}日（${dayNames[todayDate.getDay()]}）`;
+  const todayKey = todayDate.toISOString().split("T")[0];
+
+  // 今月の情報
+  const currentYear = todayDate.getFullYear();
+  const currentMonth = todayDate.getMonth(); // 0始まり
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  // 1日が何曜日か（月曜始まりに変換: 0=月, 6=日）
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+  const firstDayOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
+  const monthLabel = `${currentYear}年${currentMonth + 1}月`;
 
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
-        if (snap.exists()) {
-          setProfile(snap.data() as Profile);
-        }
+        if (snap.exists()) setProfile(snap.data() as Profile);
       } catch (e) {
         console.error(e);
       }
@@ -94,38 +91,39 @@ export default function Home() {
     if (user) fetchProfile();
   }, [user]);
 
+  // Firestoreから今月の食事履歴を取得
+  useEffect(() => {
+    const fetchMealHistory = async () => {
+      try {
+        const startOfMonth = new Date(currentYear, currentMonth, 1).toISOString();
+        const endOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59).toISOString();
+        const q = query(
+          collection(db, "meals"),
+          where("date", ">=", startOfMonth),
+          where("date", "<=", endOfMonth)
+        );
+        const snap = await getDocs(q);
+        const history: Record<string, string[]> = {};
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          const dateKey = data.date.split("T")[0];
+          if (!history[dateKey]) history[dateKey] = [];
+          history[dateKey].push(data.mealType);
+        });
+        setMealHistory(history);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchMealHistory();
+  }, [currentYear, currentMonth]);
+
   if (loading) return null;
 
-  const todayDate = new Date();
-  const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
-  const todayLabel = `今日 ${todayDate.getMonth() + 1}月${todayDate.getDate()}日（${dayNames[todayDate.getDay()]}）`;
-  const todayKey = todayDate.toISOString().split("T")[0];
-
   const mealConfig = [
-    {
-      key: "breakfast" as keyof Meals,
-      icon: "🌅",
-      label: "朝ごはん",
-      borderColor: "border-[#F5B8C4]",
-      bgColor: "bg-[#FFF5F7]",
-      tagColor: "bg-[#F9C6D0]",
-    },
-    {
-      key: "lunch" as keyof Meals,
-      icon: "☀️",
-      label: "昼ごはん",
-      borderColor: "border-[#F5C97A]",
-      bgColor: "bg-[#FFFDF0]",
-      tagColor: "bg-[#FAE095]",
-    },
-    {
-      key: "dinner" as keyof Meals,
-      icon: "🌙",
-      label: "夜ごはん",
-      borderColor: "border-[#B8D8C8]",
-      bgColor: "bg-[#F5FBF7]",
-      tagColor: "bg-[#C5E8D8]",
-    },
+    { key: "breakfast" as keyof Meals, icon: "🌅", label: "朝ごはん", borderColor: "border-[#F5B8C4]", bgColor: "bg-[#FFF5F7]", tagColor: "bg-[#F9C6D0]" },
+    { key: "lunch" as keyof Meals, icon: "☀️", label: "昼ごはん", borderColor: "border-[#F5C97A]", bgColor: "bg-[#FFFDF0]", tagColor: "bg-[#FAE095]" },
+    { key: "dinner" as keyof Meals, icon: "🌙", label: "夜ごはん", borderColor: "border-[#B8D8C8]", bgColor: "bg-[#F5FBF7]", tagColor: "bg-[#C5E8D8]" },
   ];
 
   const getNutrientComment = (score: number) => {
@@ -136,125 +134,55 @@ export default function Home() {
   };
 
   const nutrients = [
-    {
-      label: "🌾 炭水化物",
-      hint: "脳のガソリン",
-      color: "bg-[#FAC775]",
-      score: nutritionScores.carbs,
-    },
-    {
-      label: "🥑 脂質",
-      hint: "細胞のバリア",
-      color: "bg-[#F5C4B3]",
-      score: nutritionScores.fat,
-    },
-    {
-      label: "🍗 タンパク質",
-      hint: "髪・肌・筋肉の材料",
-      color: "bg-[#9FE1CB]",
-      score: nutritionScores.protein,
-    },
-    {
-      label: "🥦 ビタミン",
-      hint: "肌と免疫を守る",
-      color: "bg-[#C0DD97]",
-      score: nutritionScores.vitamin,
-    },
-    {
-      label: "🦴 ミネラル",
-      hint: "骨・血液を作る",
-      color: "bg-[#B5D4F4]",
-      score: nutritionScores.mineral,
-    },
+    { label: "🌾 炭水化物", hint: "脳のガソリン", color: "bg-[#FAC775]", score: nutritionScores.carbs },
+    { label: "🥑 脂質", hint: "細胞のバリア", color: "bg-[#F5C4B3]", score: nutritionScores.fat },
+    { label: "🍗 タンパク質", hint: "髪・肌・筋肉の材料", color: "bg-[#9FE1CB]", score: nutritionScores.protein },
+    { label: "🥦 ビタミン", hint: "肌と免疫を守る", color: "bg-[#C0DD97]", score: nutritionScores.vitamin },
+    { label: "🦴 ミネラル", hint: "骨・血液を作る", color: "bg-[#B5D4F4]", score: nutritionScores.mineral },
   ];
 
-  const handleMealImageChange = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    mealKey: keyof Meals,
-  ) => {
+  const handleMealImageChange = async (e: React.ChangeEvent<HTMLInputElement>, mealKey: keyof Meals) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     const previewUrl = URL.createObjectURL(file);
-
     const base64 = await new Promise<string>((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.readAsDataURL(file);
     });
-
-    setMeals((prev) => ({
-      ...prev,
-      [mealKey]: {
-        ...prev[mealKey],
-        photo: previewUrl,
-        message: "分析中...🌸",
-      },
-    }));
-
-    setMealHistory((prev) => ({
-      ...prev,
-      [todayKey]: [...(prev[todayKey] || []), mealKey],
-    }));
-
-    await addDoc(collection(db, "meals"), {
-      mealType: mealKey,
-      date: new Date().toISOString(),
-      uid: user?.uid ?? "anonymous",
-    });
-
-    // コメント分析と栄養スコア分析を並列実行
+    setMeals((prev) => ({ ...prev, [mealKey]: { ...prev[mealKey], photo: previewUrl, message: "分析中...🌸" } }));
+    setMealHistory((prev) => ({ ...prev, [todayKey]: [...(prev[todayKey] || []), mealKey] }));
+    await addDoc(collection(db, "meals"), { mealType: mealKey, date: new Date().toISOString(), uid: user?.uid ?? "anonymous" });
     await Promise.all([
       analyzeFood(base64, mealKey),
-      profile
-        ? analyzeNutrition(base64, profile).then((scores) => {
-            if (scores) {
-              setNutritionScores((prev) => ({
-                carbs: Math.min(100, prev.carbs + scores.carbs),
-                fat: Math.min(100, prev.fat + scores.fat),
-                protein: Math.min(100, prev.protein + scores.protein),
-                vitamin: Math.min(100, prev.vitamin + scores.vitamin),
-                mineral: Math.min(100, prev.mineral + scores.mineral),
-              }));
-            }
-          })
-        : Promise.resolve(),
+      profile ? analyzeNutrition(base64, profile).then((scores) => {
+        if (scores) {
+          setNutritionScores((prev) => ({
+            carbs: Math.min(100, prev.carbs + scores.carbs),
+            fat: Math.min(100, prev.fat + scores.fat),
+            protein: Math.min(100, prev.protein + scores.protein),
+            vitamin: Math.min(100, prev.vitamin + scores.vitamin),
+            mineral: Math.min(100, prev.mineral + scores.mineral),
+          }));
+        }
+      }) : Promise.resolve(),
     ]);
   };
 
-  const handleSnackImageChange = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    snackId: string,
-  ) => {
+  const handleSnackImageChange = async (e: React.ChangeEvent<HTMLInputElement>, snackId: string) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     const previewUrl = URL.createObjectURL(file);
-
     const base64 = await new Promise<string>((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.readAsDataURL(file);
     });
-
-    setSnacks((prev) =>
-      prev.map((s) =>
-        s.id === snackId
-          ? { ...s, photo: previewUrl, message: "分析中...🌸" }
-          : s,
-      ),
-    );
-
+    setSnacks((prev) => prev.map((s) => s.id === snackId ? { ...s, photo: previewUrl, message: "分析中...🌸" } : s));
     await analyzeFoodFree(
       base64,
-      (msg) =>
-        setSnacks((prev) =>
-          prev.map((s) => (s.id === snackId ? { ...s, message: msg } : s)),
-        ),
-      () =>
-        setSnacks((prev) =>
-          prev.map((s) =>
-            s.id === snackId ? { ...s, message: "記録できたね🌸" } : s,
-          ),
-        ),
+      (msg) => setSnacks((prev) => prev.map((s) => s.id === snackId ? { ...s, message: msg } : s)),
+      () => setSnacks((prev) => prev.map((s) => s.id === snackId ? { ...s, message: "記録できたね🌸" } : s)),
     );
   };
 
@@ -263,44 +191,26 @@ export default function Home() {
     const newSnack: Snack = {
       id: Date.now().toString(),
       note: snackInput,
-      time: new Date().toLocaleTimeString("ja-JP", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      time: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
       photo: null,
       message: "",
     };
     setSnacks((prev) => [...prev, newSnack]);
-    await addDoc(collection(db, "snacks"), {
-      note: snackInput,
-      date: new Date().toISOString(),
-      uid: user?.uid ?? "anonymous",
-    });
+    await addDoc(collection(db, "snacks"), { note: snackInput, date: new Date().toISOString(), uid: user?.uid ?? "anonymous" });
     setSnackInput("");
   };
 
   const saveDiary = async () => {
     if (!diaryNote.trim()) return;
-    await addDoc(collection(db, "diary"), {
-      note: diaryNote,
-      date: new Date().toISOString(),
-      uid: user?.uid ?? "anonymous",
-    });
+    await addDoc(collection(db, "diary"), { note: diaryNote, date: new Date().toISOString(), uid: user?.uid ?? "anonymous" });
     setDiarySaved(true);
     alert("日記を保存したよ🌸");
   };
 
   const addPastMeal = async () => {
     if (!selectedDay || !pastMealInput.trim()) return;
-    setMealHistory((prev) => ({
-      ...prev,
-      [selectedDay]: [...(prev[selectedDay] || []), "past"],
-    }));
-    await addDoc(collection(db, "meals"), {
-      mealType: "past",
-      note: pastMealInput,
-      date: new Date(selectedDay).toISOString(),
-    });
+    setMealHistory((prev) => ({ ...prev, [selectedDay]: [...(prev[selectedDay] || []), "past"] }));
+    await addDoc(collection(db, "meals"), { mealType: "past", note: pastMealInput, date: new Date(selectedDay).toISOString(), uid: user?.uid ?? "anonymous" });
     setPastMealInput("");
     setSelectedDay(null);
   };
@@ -310,11 +220,11 @@ export default function Home() {
       <div className="max-w-md mx-auto">
         <ScreenHeader source="/header.png" height={100} />
         <div className="p-4 space-y-4">
+
+          {/* 日付ラベル */}
           <div className="flex items-center gap-2 py-1">
             <div className="h-px flex-1 bg-[#F9C6D0]" />
-            <p className="text-sm font-bold tracking-wider text-[#7a3545] px-2">
-              {todayLabel || "今日"}
-            </p>
+            <p className="text-sm font-bold tracking-wider text-[#7a3545] px-2">{todayLabel}</p>
             <div className="h-px flex-1 bg-[#F9C6D0]" />
           </div>
 
@@ -323,71 +233,28 @@ export default function Home() {
             {mealConfig.map((meal) => {
               const data = meals[meal.key];
               return (
-                <div
-                  key={meal.key}
-                  className={`flex-1 rounded-2xl border-[1.5px] p-2 flex flex-col ${meal.borderColor} ${meal.bgColor}`}
-                >
-                  <div
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full self-start ${meal.tagColor}`}
-                  >
+                <div key={meal.key} className={`flex-1 rounded-2xl border-[1.5px] p-2 flex flex-col ${meal.borderColor} ${meal.bgColor}`}>
+                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full self-start ${meal.tagColor}`}>
                     <span className="text-[10px]">{meal.icon}</span>
                     <span className="text-[9px] font-bold">{meal.label}</span>
                   </div>
                   {data.photo ? (
                     <div className="mt-2 flex flex-col gap-1 overflow-hidden">
-                      <Image
-                        src={data.photo}
-                        alt={meal.label}
-                        width={400}
-                        height={200}
-                        className="w-full h-20 object-cover rounded-xl"
-                        unoptimized
-                      />
-                      <div
-                        className="cursor-pointer"
-                        onClick={() =>
-                          setExpandedMeal(
-                            expandedMeal === meal.key ? null : meal.key,
-                          )
-                        }
-                      >
-                        <p
-                          className={`text-[9px] text-[#7a6070] leading-tight ${expandedMeal === meal.key ? "" : "line-clamp-3"}`}
-                        >
-                          {data.message}
-                        </p>
-                        <span className="text-[8px] text-[#D9768A]">
-                          {expandedMeal === meal.key
-                            ? "閉じる ▲"
-                            : "続きを見る ▼"}
-                        </span>
+                      <Image src={data.photo} alt={meal.label} width={400} height={200} className="w-full h-20 object-cover rounded-xl" unoptimized />
+                      <div className="cursor-pointer" onClick={() => setExpandedMeal(expandedMeal === meal.key ? null : meal.key)}>
+                        <p className={`text-[9px] text-[#7a6070] leading-tight ${expandedMeal === meal.key ? "" : "line-clamp-3"}`}>{data.message}</p>
+                        <span className="text-[8px] text-[#D9768A]">{expandedMeal === meal.key ? "閉じる ▲" : "続きを見る ▼"}</span>
                       </div>
                       <label className="text-center text-[9px] text-gray-400 cursor-pointer block mt-1 hover:text-gray-600">
                         変更
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => handleMealImageChange(e, meal.key)}
-                        />
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleMealImageChange(e, meal.key)} />
                       </label>
                     </div>
                   ) : (
-                    <label
-                      className={`mt-3 border-2 border-dashed rounded-xl p-3 flex flex-col items-center justify-center gap-1 ${meal.borderColor} cursor-pointer hover:opacity-70 transition`}
-                    >
+                    <label className={`mt-3 border-2 border-dashed rounded-xl p-3 flex flex-col items-center justify-center gap-1 ${meal.borderColor} cursor-pointer hover:opacity-70 transition`}>
                       <span className="text-base">📷</span>
-                      <span className="text-[9px] text-gray-400 text-center leading-tight">
-                        写真を
-                        <br />
-                        追加する
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleMealImageChange(e, meal.key)}
-                      />
+                      <span className="text-[9px] text-gray-400 text-center leading-tight">写真を<br />追加する</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleMealImageChange(e, meal.key)} />
                     </label>
                   )}
                 </div>
@@ -398,17 +265,13 @@ export default function Home() {
           {/* プロフィール未設定の案内 */}
           {!profile?.age && (
             <div className="bg-[#FFF5F7] rounded-2xl p-3 border border-[#F9C6D0] text-center">
-              <p className="text-[10px] text-[#D9768A]">
-                ⚙️ 設定からプロフィールを登録すると栄養バランスが分析されるよ🌸
-              </p>
+              <p className="text-[10px] text-[#D9768A]">⚙️ 設定からプロフィールを登録すると栄養バランスが分析されるよ🌸</p>
             </div>
           )}
 
           {/* 間食・ドリンク記録 */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#FBF0B2] space-y-3 shadow-sm">
-            <h2 className="text-sm font-extrabold text-[#7a6010]">
-              🍵 間食・ドリンク記録
-            </h2>
+            <h2 className="text-sm font-extrabold text-[#7a6010]">🍵 間食・ドリンク記録</h2>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -417,49 +280,23 @@ export default function Home() {
                 value={snackInput}
                 onChange={(e) => setSnackInput(e.target.value)}
               />
-              <button
-                onClick={addSnack}
-                className="bg-[#FAE095] text-[#7a6010] px-4 rounded-xl text-xs font-bold hover:opacity-80 transition"
-              >
-                追加
-              </button>
+              <button onClick={addSnack} className="bg-[#FAE095] text-[#7a6010] px-4 rounded-xl text-xs font-bold hover:opacity-80 transition">追加</button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               {snacks.map((s) => (
-                <div
-                  key={s.id}
-                  className="border-t border-[#F5F0E8] pt-2 space-y-1.5"
-                >
+                <div key={s.id} className="border-t border-[#F5F0E8] pt-2 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] text-gray-400 w-9">
-                      {s.time}
-                    </span>
+                    <span className="text-[10px] text-gray-400 w-9">{s.time}</span>
                     <p className="text-xs flex-1 font-medium">{s.note}</p>
                     <label className="cursor-pointer p-1 hover:bg-gray-100 rounded-lg">
                       <span className="text-sm">📷</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleSnackImageChange(e, s.id)}
-                      />
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleSnackImageChange(e, s.id)} />
                     </label>
                   </div>
                   {s.photo && (
                     <div className="flex flex-col gap-1 bg-gray-50 p-2 rounded-xl">
-                      <Image
-                        src={s.photo}
-                        alt="snack"
-                        width={400}
-                        height={96}
-                        className="w-full h-24 object-cover rounded-lg"
-                        unoptimized
-                      />
-                      {s.message && (
-                        <p className="text-[10px] text-[#7a6070]">
-                          {s.message}
-                        </p>
-                      )}
+                      <Image src={s.photo} alt="snack" width={400} height={96} className="w-full h-24 object-cover rounded-lg" unoptimized />
+                      {s.message && <p className="text-[10px] text-[#7a6070]">{s.message}</p>}
                     </div>
                   )}
                 </div>
@@ -469,20 +306,13 @@ export default function Home() {
 
           {/* 今日の一言日記 */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#F9C6D0] space-y-2 shadow-sm">
-            <h2 className="text-sm font-extrabold text-[#D9768A]">
-              📝 今日の一言日記
-            </h2>
-            <p className="text-[10px] text-gray-400">
-              今日の気持ちや気づいたこと、なんでも書いてね🌸
-            </p>
+            <h2 className="text-sm font-extrabold text-[#D9768A]">📝 今日の一言日記</h2>
+            <p className="text-[10px] text-gray-400">今日の気持ちや気づいたこと、なんでも書いてね🌸</p>
             <textarea
               placeholder="今日はどんな一日でしたか？"
               className="w-full bg-[#FFF5F7] rounded-xl p-3 text-xs border border-[#F9C6D0] focus:outline-none resize-none h-20"
               value={diaryNote}
-              onChange={(e) => {
-                setDiaryNote(e.target.value);
-                setDiarySaved(false);
-              }}
+              onChange={(e) => { setDiaryNote(e.target.value); setDiarySaved(false); }}
             />
             <button
               onClick={saveDiary}
@@ -494,9 +324,7 @@ export default function Home() {
 
           {/* 栄養バランス */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#E8E0F8] space-y-3 shadow-sm">
-            <h2 className="text-xs font-extrabold text-[#3d2d7a]">
-              🌿 今日の栄養バランス
-            </h2>
+            <h2 className="text-xs font-extrabold text-[#3d2d7a]">🌿 今日の栄養バランス</h2>
             <div className="space-y-3">
               {nutrients.map((n) => (
                 <div key={n.label} className="text-[11px]">
@@ -505,14 +333,9 @@ export default function Home() {
                     <span className="text-[9px] text-gray-400">{n.hint}</span>
                   </div>
                   <div className="h-2 w-full bg-[#F0EEF8] rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-700 ${n.color}`}
-                      style={{ width: `${n.score}%` }}
-                    />
+                    <div className={`h-full rounded-full transition-all duration-700 ${n.color}`} style={{ width: `${n.score}%` }} />
                   </div>
-                  <p className="text-[9px] text-gray-400 mt-0.5">
-                    {getNutrientComment(n.score)}
-                  </p>
+                  <p className="text-[9px] text-gray-400 mt-0.5">{getNutrientComment(n.score)}</p>
                 </div>
               ))}
             </div>
@@ -520,54 +343,53 @@ export default function Home() {
 
           {/* カレンダー */}
           <div className="bg-white rounded-2xl p-4 border-[1.5px] border-[#E8E0F8] space-y-3 shadow-sm">
-            <h2 className="text-xs font-extrabold text-gray-700">
-              📅 6月の食事カレンダー
-            </h2>
-            <p className="text-[10px] text-gray-400">
-              📌 日付をタップすると過去の記録を追加できるよ
-            </p>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-extrabold text-gray-700">📅 {monthLabel}の食事カレンダー</h2>
+            </div>
+            <p className="text-[10px] text-gray-400">📌 日付をタップすると過去の記録を追加できるよ</p>
             <div className="grid grid-cols-7 gap-1 text-center">
               {["月", "火", "水", "木", "金", "土", "日"].map((d) => (
-                <span key={d} className="text-[10px] text-gray-400 font-bold">
-                  {d}
-                </span>
+                <span key={d} className="text-[10px] text-gray-400 font-bold">{d}</span>
               ))}
-              {[...Array(30)].map((_, i) => {
+              {/* 月初めのオフセット */}
+              {[...Array(firstDayOffset)].map((_, i) => (
+                <div key={`offset-${i}`} />
+              ))}
+              {/* 日付 */}
+              {[...Array(daysInMonth)].map((_, i) => {
                 const day = i + 1;
-                const dateKey = `2026-06-${String(day).padStart(2, "0")}`;
+                const dateKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                 const history = mealHistory[dateKey] || [];
                 const isToday = dateKey === todayKey;
                 const isSelected = selectedDay === dateKey;
+                const isFuture = dateKey > todayKey;
+
                 let bgColor = "bg-transparent hover:bg-[#FFF0F3]";
-                if (isSelected) bgColor = "bg-[#D9768A]";
+                if (isFuture) bgColor = "bg-transparent opacity-30";
+                else if (isSelected) bgColor = "bg-[#D9768A]";
                 else if (isToday) bgColor = "bg-[#F9C6D0]";
-                else if (history.length >= 3)
-                  bgColor = "bg-[#C5E8D8] hover:opacity-80";
-                else if (history.length > 0)
-                  bgColor = "bg-[#FBF0B2] hover:opacity-80";
+                else if (history.length >= 3) bgColor = "bg-[#C5E8D8] hover:opacity-80";
+                else if (history.length > 0) bgColor = "bg-[#FBF0B2] hover:opacity-80";
+
                 return (
                   <div
                     key={day}
-                    className={`aspect-square flex items-center justify-center rounded-full cursor-pointer transition ${bgColor}`}
-                    onClick={() => setSelectedDay(isSelected ? null : dateKey)}
+                    className={`aspect-square flex items-center justify-center rounded-full transition ${bgColor} ${!isFuture ? "cursor-pointer" : ""}`}
+                    onClick={() => !isFuture && setSelectedDay(isSelected ? null : dateKey)}
                   >
-                    <span
-                      className={`text-[10px] font-semibold ${isSelected ? "text-white" : isToday ? "text-[#c0506a] font-bold" : "text-gray-700"}`}
-                    >
+                    <span className={`text-[10px] font-semibold ${isSelected ? "text-white" : isToday ? "text-[#c0506a] font-bold" : "text-gray-700"}`}>
                       {day}
                     </span>
                   </div>
                 );
               })}
             </div>
+
+            {/* 過去の記録入力 */}
             {selectedDay && (
               <div className="mt-2 space-y-2 border-t border-[#F0E8F0] pt-3">
                 <p className="text-xs font-bold text-[#7a3545]">
-                  {selectedDay.replace(
-                    /\d{4}-(\d{2})-(\d{2})/,
-                    (_, m, d) => `${parseInt(m)}月${parseInt(d)}日`,
-                  )}
-                  の記録を追加
+                  {selectedDay.replace(/\d{4}-(\d{2})-(\d{2})/, (_, m, d) => `${parseInt(m)}月${parseInt(d)}日`)}の記録を追加
                 </p>
                 <input
                   type="text"
@@ -577,55 +399,30 @@ export default function Home() {
                   onChange={(e) => setPastMealInput(e.target.value)}
                 />
                 <div className="flex gap-2">
-                  <button
-                    onClick={addPastMeal}
-                    className="flex-1 bg-[#F9C6D0] text-[#7a3545] rounded-xl p-2 text-xs font-bold hover:opacity-80"
-                  >
-                    記録する
-                  </button>
-                  <button
-                    onClick={() => setSelectedDay(null)}
-                    className="px-4 bg-gray-100 text-gray-500 rounded-xl p-2 text-xs hover:opacity-80"
-                  >
-                    閉じる
-                  </button>
+                  <button onClick={addPastMeal} className="flex-1 bg-[#F9C6D0] text-[#7a3545] rounded-xl p-2 text-xs font-bold hover:opacity-80">記録する</button>
+                  <button onClick={() => setSelectedDay(null)} className="px-4 bg-gray-100 text-gray-500 rounded-xl p-2 text-xs hover:opacity-80">閉じる</button>
                 </div>
                 {(mealHistory[selectedDay] || []).length > 0 && (
                   <div className="space-y-1 pt-1">
                     <p className="text-[10px] text-gray-400">この日の記録：</p>
                     {(mealHistory[selectedDay] || []).map((m, idx) => (
-                      <p
-                        key={idx}
-                        className="text-[10px] text-[#7a3545] bg-[#FFF5F7] rounded-lg px-2 py-1"
-                      >
-                        {m === "breakfast"
-                          ? "🌅 朝ごはん"
-                          : m === "lunch"
-                            ? "☀️ 昼ごはん"
-                            : m === "dinner"
-                              ? "🌙 夜ごはん"
-                              : "📝 " + m}
+                      <p key={idx} className="text-[10px] text-[#7a3545] bg-[#FFF5F7] rounded-lg px-2 py-1">
+                        {m === "breakfast" ? "🌅 朝ごはん" : m === "lunch" ? "☀️ 昼ごはん" : m === "dinner" ? "🌙 夜ごはん" : "📝 " + m}
                       </p>
                     ))}
                   </div>
                 )}
               </div>
             )}
+
+            {/* 凡例 */}
             <div className="flex gap-3 justify-center text-[9px] text-gray-400 pt-1">
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#C5E8D8]" />
-                3食食べた
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#FBF0B2]" />
-                1〜2食
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#F9C6D0]" />
-                今日
-              </div>
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-[#C5E8D8]" />3食食べた</div>
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-[#FBF0B2]" />1〜2食</div>
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-[#F9C6D0]" />今日</div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
