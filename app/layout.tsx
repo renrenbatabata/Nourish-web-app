@@ -1,25 +1,5 @@
-import "./globals.css";
-import { TabNavigation } from "./components/TabNavigation";
 
-export const metadata = {
-  title: "Nourish 🌸",
-  description: "食べることは、自分を大切にすること",
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="ja" suppressHydrationWarning={true}>
-      <body className="min-h-full flex flex-col bg-[#FDF6F0] pb-16">
-        {/* メインコンテンツ */}
-        <main className="flex-1">{children}</main>
-
-        {/* 画面下ナビゲーション */}
-        <TabNavigation />
-      </body>
-    </html>
-  );
-}
+import './globals.css';
+import { TabNavigation } from './components/TabNavigation';
+export const metadata={title:'Nourish | 食べる日々の記録',description:'写真や言葉で、あなたのペースで残す食事の記録。'};
+export default function RootLayout({children}:{children:React.ReactNode}) {return <html lang="ja"><body><a className="sr-only skip-link" href="#main">本文へ</a><main id="main">{children}</main><TabNavigation/></body></html>;}
