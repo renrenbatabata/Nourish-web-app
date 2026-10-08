@@ -49,8 +49,9 @@ test('new and legacy meal records coexist without losing diary', () => {
   assert.equal(days['2026-10-01'].diary,'diary');
 });
 test('analysis API rejects anonymous requests and retired scoring', async () => {
-  const api=load('app/api/analyze/route.ts', {'../../lib/records':r});
+  const api=load('app/api/analyze/route.ts', {'../../lib/records':r, '../../lib/analysisPhotos':load('app/lib/analysisPhotos.ts')});
   const result=await api.POST(new Request('http://localhost/api/analyze',{method:'POST'}));
   assert.equal(result.status,401);
   assert.equal((await api.PUT()).status,410);
 });
+
