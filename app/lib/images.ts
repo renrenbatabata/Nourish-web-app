@@ -20,9 +20,12 @@ export async function uploadPhoto(uid: string, date: string, data: string) {
   await uploadString(target,data,'data_url');
   return {id,url:await getDownloadURL(target)};
 }
-export async function analyzePhotos(images: string[], token: string) {
-  const response = await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({images}),signal:AbortSignal.timeout(65000)});
-  const data = await response.json();
+export async function analyzePhotos(photoUrls: string[], token: string) {
+  let response: Response;
+  try { response = await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({photoUrls}),signal:AbortSignal.timeout(65000)}); }
+  catch { throw new Error('食材の確認に接続できませんでした。通信状況を確認して、もう一度お試しください。'); }
+  const data = await response.json().catch(()=>null);
+  if (!data) throw new Error('食材の確認から応答を読み取れませんでした。時間をおいてお試しください。');
   if (!response.ok) throw new Error(data.error || '食材を確認できませんでした。時間をおいてお試しください。');
   return data.analysis;
 }
@@ -32,3 +35,4 @@ export async function photoData(url: string) {
   const blob = await response.blob();
   return prepareImage(new File([blob],'photo',{type:blob.type}));
 }
+
