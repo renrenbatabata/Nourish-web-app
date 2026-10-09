@@ -49,9 +49,18 @@ test('new and legacy meal records coexist without losing diary', () => {
   assert.equal(days['2026-10-01'].diary,'diary');
 });
 test('analysis API rejects anonymous requests and retired scoring', async () => {
-  const api=load('app/api/analyze/route.ts', {'../../lib/records':r, '../../lib/analysisPhotos':load('app/lib/analysisPhotos.ts')});
+  const api=load('app/api/analyze/route.ts', {'../../lib/analysisPrompt':load('app/lib/analysisPrompt.ts'), '../../lib/records':r, '../../lib/analysisPhotos':load('app/lib/analysisPhotos.ts')});
   const result=await api.POST(new Request('http://localhost/api/analyze',{method:'POST'}));
   assert.equal(result.status,401);
   assert.equal((await api.PUT()).status,410);
+});
+
+test('detailed analysis keeps dish, overview, ingredient descriptions, and inference labels through persistence', () => {
+  const analysis={dishName:'抹茶のクレープ（推定）',summary:'抹茶色の生地で包まれたクレープに見えます。',foods:[{food:'小麦粉',nutrients:['carbs'],description:'一般的なクレープ生地に使われている場合、炭水化物を含みます。',basis:'inferred'}],message:'写真からの推定です。'};
+  assert.deepEqual(r.parseAnalysis(analysis),analysis);
+  assert.deepEqual(r.normalizeMeal({photos:[],analysis}).analysis,analysis);
+  assert.equal(r.parseAnalysis({...analysis,dishName:123}),null);
+  assert.equal(r.parseAnalysis({...analysis,foods:[{...analysis.foods[0],basis:'certain'}]}),null);
+  assert.deepEqual(r.parseAnalysis({foods:[{food:'卵',nutrients:['protein']}],message:''}),{foods:[{food:'卵',nutrients:['protein']}],message:''});
 });
 

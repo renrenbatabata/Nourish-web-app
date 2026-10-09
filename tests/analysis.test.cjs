@@ -17,7 +17,7 @@ const uid = 'test-user';
 const photo = owner => 'https://firebasestorage.googleapis.com/v0/b/taberu-app-79faf.firebasestorage.app/o/' + encodeURIComponent('meals/' + owner + '/2026-10-09/photo.jpg') + '?alt=media&token=test';
 const token = 'header.' + Buffer.from(JSON.stringify({sub:uid,aud:'taberu-app-79faf',iss:'https://securetoken.google.com/taberu-app-79faf'})).toString('base64url') + '.signature';
 const request = body => new Request('http://localhost/api/analyze', {method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
-const api = () => load('app/api/analyze/route.ts', {'../../lib/records':records,'../../lib/analysisPhotos':photos});
+const api = () => load('app/api/analyze/route.ts', {'../../lib/analysisPrompt':load('app/lib/analysisPrompt.ts'), '../../lib/records':records,'../../lib/analysisPhotos':photos});
 function key(t) { const old=process.env.ANTHROPIC_API_KEY; process.env.ANTHROPIC_API_KEY='test-only-key'; t.after(()=>{if(old===undefined)delete process.env.ANTHROPIC_API_KEY;else process.env.ANTHROPIC_API_KEY=old;}); }
 test('photo loader rejects foreign accounts, hosts, buckets, credentials, and malformed paths', () => {
   assert.equal(photos.ownedPhotoUrl(photo(uid),uid).hostname,'firebasestorage.googleapis.com');

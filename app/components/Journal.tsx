@@ -3,10 +3,11 @@
 
 "use client";
 import { useState } from 'react';
-import { DayRecord, Meal, MealKey, mealKeys, mealLabels, nutrientLabels, parseAnalysis } from '../lib/records';
+import { DayRecord, Meal, MealKey, mealKeys, mealLabels, parseAnalysis } from '../lib/records';
 import { analyzePhotos, prepareImage, uploadPhoto } from '../lib/images';
 import { auth } from '../../firebase';
 import { Notice } from './AppUI';
+import { AnalysisResult } from './AnalysisResult';
 type Patch = Partial<Omit<DayRecord,'date'|'legacyMeals'>>;
 export function Journal({day,uid,save,showNutrition=true}:{day:DayRecord;uid:string;save:(patch:Patch)=>Promise<void>;showNutrition?:boolean}) {
   return <div className="journal"><div className="section-heading"><h2>食事の記録</h2><span className="muted">写真も、ひとことも。残したい分だけ。</span></div>
@@ -25,7 +26,7 @@ function MealEditor({meal,mealKey,date,uid,save,showNutrition}:{meal:Meal;mealKe
     <label className="field">ひとこと<textarea maxLength={1500} rows={2} value={note} disabled={!!busy} onChange={e=>{setNote(e.target.value);setSuccess('');}} placeholder="食べたものや、そのときのこと"/></label>
     <button className="button secondary wide" disabled={!!busy || note===meal.note} onClick={()=>run('保存しています',()=>save({...meal,note}))}>ひとことを保存</button>
     {showNutrition && meal.photos.length>0 && <details className="analysis-panel"><summary>食材と栄養のヒント</summary><p className="small muted">写真から分かる範囲の推定です。食べた量や一日の充足度は判定しません。</p>
-      {meal.analysis && <div className="analysis-result">{meal.analysis.foods.length ? meal.analysis.foods.map((f,i)=><div key={i}><strong>{f.food}</strong><div className="tags">{f.nutrients.map(n=><span key={n}>{nutrientLabels[n]}</span>)}</div></div>):<p>写真から食材を特定できませんでした。</p>}<p>{meal.analysis.message}</p><p className="small muted">写っていない食材や調味料は分からないことがあります。誤りがあれば参考にしないでください。</p><button className="text-button" disabled={!!busy} onClick={()=>run('変更しています',()=>save({photos:meal.photos,note,message:'',analyzed:false}))}>この推定を取り消す</button></div>}
+      {meal.analysis && <><AnalysisResult analysis={meal.analysis}/><p className="small muted">写っていない材料や調味料は分からないことがあります。推定された材料は、実際に使われていない場合があります。</p><button className="text-button" disabled={!!busy} onClick={()=>run('変更しています',()=>save({photos:meal.photos,note,message:'',analyzed:false}))}>この推定を取り消す</button></>}
       <label className="check"><input type="checkbox" checked={consent} disabled={!!busy} onChange={e=>setConsent(e.target.checked)}/><span>この食事の写真をAI提供元（Anthropic）に送って確認する</span></label><p className="small muted">氏名や顔などが写った写真は避けてください。利用するかどうかは自由です。</p>
       <button className="button secondary wide" disabled={!!busy||!consent} onClick={()=>run('食材を確認しています',async()=>{const user=auth.currentUser;if(!user||user.uid!==uid)throw new Error('再度ログインしてください。');const photoUrls=meal.photos.map(p=>p.url);const result=parseAnalysis(await analyzePhotos(photoUrls,await user.getIdToken()));if(!result)throw new Error('結果を読み取れませんでした。');await save({...meal,note,analysis:result,analyzed:true,message:''});setConsent(false);})}>{meal.analysis?'もう一度確認する':'写真の食材を確認する'}</button>
     </details>}
