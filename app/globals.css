@@ -1,5 +1,22 @@
 
 @import "tailwindcss";
+.daily-nutrition{margin:0 0 26px}
+.daily-nutrition .eyebrow{margin:0 0 5px}
+.daily-nutrition .section-heading a{font-size:14px}
+.nutrition-gauges{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:20px 0}
+.nutrition-gauge{padding:18px;border:1px solid #e1e8da;border-radius:16px;background:#fafcf7;min-width:0}
+.nutrition-gauge-heading{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;margin-bottom:12px}
+.nutrition-gauge-heading strong{font-size:15px}.nutrition-gauge-heading>span{font-size:13px;color:#5c705a}
+.nutrition-track{height:12px;border-radius:12px;background:#e6ebe0;overflow:hidden}
+.nutrition-track>span{height:100%;display:block;border-radius:12px;background:#7ca07d}
+.nutrition-gauge:nth-child(2) .nutrition-track>span{background:#7e9eb1}.nutrition-gauge:nth-child(3) .nutrition-track>span{background:#c5a57c}.nutrition-gauge:nth-child(4) .nutrition-track>span{background:#9baf65}.nutrition-gauge:nth-child(5) .nutrition-track>span{background:#a396bd}
+.nutrition-gauge .nutrition-gauge-caption{font-size:13px;color:#5c705a;margin:10px 0 0}
+.nutrition-gauge .nutrition-incomplete{font-size:12px;color:#726958;margin:4px 0 0}
+.nutrition-edit{border-top:1px solid var(--line);padding-top:16px}.nutrition-edit>summary{font-weight:600;cursor:pointer;font-size:15px}
+.nutrition-entry{border:1px solid var(--line);border-radius:16px;margin-top:16px;padding:18px}.nutrition-entry h3{font-size:16px;overflow-wrap:anywhere}
+.nutrition-input-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+.nutrition-input-grid .field{font-size:13px}.nutrition-footnote{font-size:12px;color:var(--muted);margin:20px 0 0}
+@media(max-width:600px){.nutrition-gauges{grid-template-columns:1fr}.nutrition-entry{padding:14px}.nutrition-input-grid{gap:0 10px}}
 /* Analysis cards keep the meal overview separate from ingredient observations. */
 .analysis-overview{background:#edf3e9;border:1px solid #dce6d7;border-radius:16px;padding:18px;margin-bottom:20px;overflow-wrap:anywhere}
 .analysis-overview .analysis-kicker{font-size:12px;font-weight:600;letter-spacing:.08em;color:#547151;margin:0 0 6px}

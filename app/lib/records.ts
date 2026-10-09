@@ -1,3 +1,4 @@
+import { parseNutrition, NutritionAmounts } from './nutrition';
 export const mealKeys = ["breakfast", "lunch", "dinner"] as const;
 export type MealKey = (typeof mealKeys)[number];
 export const mealLabels: Record<MealKey, string> = { breakfast: "朝ごはん", lunch: "昼ごはん", dinner: "夜ごはん" };
@@ -5,10 +6,10 @@ export const nutrientKeys = ["carbs", "protein", "fat", "vitamin", "mineral"] as
 export type NutrientKey = (typeof nutrientKeys)[number];
 export const nutrientLabels: Record<NutrientKey, string> = { carbs: "炭水化物", protein: "たんぱく質", fat: "脂質", vitamin: "ビタミン", mineral: "ミネラル" };
 export type FoodObservation = { food: string; nutrients: NutrientKey[]; description?: string; basis?: 'visible' | 'inferred' };
-export type Analysis = { foods: FoodObservation[]; message: string; dishName?: string; summary?: string };
+export type Analysis = { foods: FoodObservation[]; message: string; dishName?: string; summary?: string; estimatedNutrition?: NutritionAmounts; portionNote?: string };
 export type Photo = { id: string; url: string };
-export type Meal = { photos: Photo[]; note: string; message: string; analyzed: boolean; analysis?: Analysis };
-export type Snack = { id: string; note: string; date: string; photo?: string };
+export type Meal = { photos: Photo[]; note: string; message: string; analyzed: boolean; analysis?: Analysis; nutrition?: NutritionAmounts; portion?: number };
+export type Snack = { id: string; note: string; date: string; photo?: string; nutrition?: NutritionAmounts; portion?: number };
 export type LegacyMeal = { id: string; mealType: string; note: string; date: string; photoUri?: string };
 export type DayRecord = { date: string; breakfast: Meal; lunch: Meal; dinner: Meal; diary: string; snacks: Snack[]; legacyMeals: LegacyMeal[] };
 export type RawRecord = { id: string; data: Record<string, unknown> };
@@ -34,7 +35,7 @@ export function monthCells(month: string): (string | null)[] {
   const count = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
   return [...Array<null>(offset).fill(null), ...Array.from({ length: count }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`)];
 }
-export function hasRecord(day?: DayRecord) { return !!day && (!!day.diary || day.snacks.length > 0 || day.legacyMeals.length > 0 || mealKeys.some(k => day[k].photos.length > 0 || !!day[k].note)); }
+export function hasRecord(day?: DayRecord) { return !!day && (!!day.diary || day.snacks.length > 0 || day.legacyMeals.length > 0 || mealKeys.some(k => day[k].photos.length > 0 || !!day[k].note || !!day[k].nutrition)); }
 const text = (v: unknown) => typeof v === "string" ? v : "";
 export const safePhotoUrl = (v: unknown): v is string => typeof v === "string" && /^https:\/\//.test(v);
 export function parseAnalysis(raw: unknown): Analysis | null {
@@ -43,6 +44,9 @@ export function parseAnalysis(raw: unknown): Analysis | null {
   if (!Array.isArray(a.foods) || typeof a.message !== "string") return null;
   if (a.dishName !== undefined && typeof a.dishName !== "string") return null;
   if (a.summary !== undefined && typeof a.summary !== "string") return null;
+  const estimatedNutrition = a.estimatedNutrition === undefined ? null : parseNutrition(a.estimatedNutrition);
+  if (a.estimatedNutrition !== undefined && !estimatedNutrition) return null;
+  if (a.portionNote !== undefined && typeof a.portionNote !== 'string') return null;
   const foods: FoodObservation[] = [];
   for (const item of a.foods.slice(0, 12)) {
     if (!item || typeof item !== "object") return null;
@@ -56,14 +60,19 @@ export function parseAnalysis(raw: unknown): Analysis | null {
   }
   return { foods, message: a.message.slice(0, 500),
     ...(a.dishName ? { dishName: a.dishName.slice(0, 100) } : {}),
-    ...(a.summary ? { summary: a.summary.slice(0, 500) } : {}) };
+    ...(a.summary ? { summary: a.summary.slice(0, 500) } : {}),
+    ...(estimatedNutrition ? { estimatedNutrition } : {}),
+    ...(a.portionNote ? { portionNote: a.portionNote.slice(0,300) } : {}) };
 }
 export function normalizeMeal(value: unknown): Meal {
   const m = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const analysis = parseAnalysis(m.analysis);
   const photos = Array.isArray(m.photos) ? m.photos.filter(p => p && typeof p.id === "string" && safePhotoUrl(p.url)).map(p => ({ id: p.id, url: p.url })) : [];
-  return { photos, note: text(m.note), message: text(m.message), analyzed: !!analysis, ...(analysis ? { analysis } : {}) };
+  const nutrition=parseNutrition(m.nutrition);
+  return { photos, note: text(m.note), message: text(m.message), analyzed: !!analysis, ...(analysis ? { analysis } : {}),
+    ...(nutrition ? {nutrition}:{}), ...portionField(m.portion) };
 }
+function portionField(value: unknown) { return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=3 ? {portion:value} : {}; }
 // Preserve old collections. Explicit new fields override legacy values, including empty ones.
 export function combineRecords(uid: string, daily: RawRecord[], meals: RawRecord[], diaries: RawRecord[], snacks: RawRecord[]): Record<string, DayRecord> {
   const result: Record<string, DayRecord> = {};
@@ -86,7 +95,7 @@ export function combineRecords(uid: string, daily: RawRecord[], meals: RawRecord
     const day = dayFor(data.date); if (!day) continue;
     for (const key of mealKeys) if (data[key] !== undefined) day[key] = normalizeMeal(data[key]);
     if (typeof data.diary === "string") day.diary = data.diary;
-    if (Array.isArray(data.snacks)) day.snacks = data.snacks.filter(s => s && typeof s.id === "string" && typeof s.note === "string").map(s => ({ id:s.id, note:s.note, date:text(s.date), ...(safePhotoUrl(s.photo) ? { photo:s.photo } : {}) }));
+    if (Array.isArray(data.snacks)) day.snacks = data.snacks.filter(s => s && typeof s.id === "string" && typeof s.note === "string").map(s => ({ id:s.id, note:s.note, date:text(s.date), ...(safePhotoUrl(s.photo) ? { photo:s.photo } : {}), ...(parseNutrition(s.nutrition)?{nutrition:parseNutrition(s.nutrition)!}:{}), ...portionField(s.portion) }));
   }
   return result;
 }
