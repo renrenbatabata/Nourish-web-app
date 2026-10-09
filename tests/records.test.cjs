@@ -12,7 +12,7 @@ function load(file, dependencies = {}) {
   new Function('exports', 'require', js)(exports, name => dependencies[name] ?? require(name));
   return exports;
 }
-const r = load('app/lib/records.ts');
+const r = load('app/lib/records.ts', {'./nutrition':load('app/lib/nutrition.ts')});
 const raw = (id, data) => ({ id, data });
 test('calendar supports leap years and month boundaries', () => {
   assert.equal(r.isDateKey('2026-02-29'), false);

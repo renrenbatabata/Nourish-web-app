@@ -12,7 +12,7 @@ function load(file, dependencies = {}) {
   return exports;
 }
 const photos = load('app/lib/analysisPhotos.ts');
-const records = load('app/lib/records.ts');
+const records = load('app/lib/records.ts', {'./nutrition':load('app/lib/nutrition.ts')});
 const uid = 'test-user';
 const photo = owner => 'https://firebasestorage.googleapis.com/v0/b/taberu-app-79faf.firebasestorage.app/o/' + encodeURIComponent('meals/' + owner + '/2026-10-09/photo.jpg') + '?alt=media&token=test';
 const token = 'header.' + Buffer.from(JSON.stringify({sub:uid,aud:'taberu-app-79faf',iss:'https://securetoken.google.com/taberu-app-79faf'})).toString('base64url') + '.signature';
