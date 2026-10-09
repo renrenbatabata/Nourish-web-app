@@ -7,16 +7,16 @@ type Patch=Partial<Omit<DayRecord,'date'|'legacyMeals'>>;
 export function DailyNutrition({day,goals,save,loadingGoals=false}:{day:DayRecord;goals:NutritionGoals;save:(patch:Patch)=>Promise<void>;loadingGoals?:boolean}){
   const totals=dailyNutrition(day),entries=nutritionEntries(day);
   const editorEntries=[...entries,...(['breakfast','lunch','dinner'] as const).filter(key=>!entries.some(entry=>entry.id===key)).map(key=>({id:key,label:{breakfast:'朝ごはん',lunch:'昼ごはん',dinner:'夜ごはん'}[key],amounts:unknownNutrition(),portion:1}))];
-  return <section className="surface daily-nutrition">
-    <div className="section-heading"><div><p className="eyebrow">{formatDay(day.date)}</p><h2>一日の栄養目標との比較</h2></div><Link href="/settings">目標を設定</Link></div>
+  return <section className="surface daily-nutrition" id="daily-nutrition">
+    <div className="section-heading"><div><p className="eyebrow">{formatDay(day.date)}</p><h2><span aria-hidden="true">❋ </span>一日の栄養目標との比較</h2></div><Link href="/settings">目標を設定</Link></div>
     <p className="small muted">記録した食事の栄養量を合計します。AIの数値は概算です。食べた割合と数値を確認して補正してください。</p>
-    <p className="small muted">以前の分析結果に栄養量がない場合は、食事の「もう一度確認する」を実行するか、下の確認欄から数値を入力できます。</p>
+    <details className="nutrition-help"><summary>ゲージの使い方</summary><p className="small muted">設定で自分の一日の目標を入力し、食事を分析して量を確認すると表示されます。以前の分析結果に栄養量がない場合は、食事の「もう一度確認する」を実行するか、下の確認欄から数値を入力できます。</p></details>
     {loadingGoals?<p role="status">栄養目標を読み込んでいます…</p>:<div className="nutrition-gauges">{intakeKeys.map(key=>{
       const value=totals[key],goal=goals[key],progress=goalProgress(value.total,goal),known=value.known>0;
       const amount=known?value.total.toLocaleString('ja-JP',{maximumFractionDigits:1}):'未計算';
       return <div className="nutrition-gauge" key={key}>
         <div className="nutrition-gauge-heading"><strong>{intakeLabels[key]}</strong><span>{amount}{known?' '+intakeUnits[key]:''} / {goal ? goal+' '+intakeUnits[key] : '目標未設定'}</span></div>
-        {progress&&known?<><div className="nutrition-track" role="progressbar" aria-label={intakeLabels[key]+'の目標に対する記録済み量'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100,Math.round(progress.percent))} aria-valuetext={Math.round(progress.percent)+'%（記録済み量）'}><span style={{width:progress.width+'%'}}/></div><p className="nutrition-gauge-caption">目標に対して約{Math.round(progress.percent)}%{value.missing?'（記録の一部のみ）':''}</p></>:<p className="nutrition-gauge-caption">{!goal?'設定から自分の一日の目標を入力してください。':'食事の栄養量を確認するとゲージが表示されます。'}</p>}
+        {progress&&known?<><div className="nutrition-track" role="progressbar" aria-label={intakeLabels[key]+'の目標に対する記録済み量'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100,Math.round(progress.percent))} aria-valuetext={Math.round(progress.percent)+'%（記録済み量）'}><span style={{width:progress.width+'%'}}/></div><p className="nutrition-gauge-caption">目標に対して約{Math.round(progress.percent)}%{value.missing?'（記録の一部のみ）':''}</p></>:<><div className="nutrition-track nutrition-track-empty" aria-hidden="true"><span/></div><p className="nutrition-gauge-caption">{!goal?'設定から自分の一日の目標を入力してください。':'食事の栄養量を確認するとゲージが表示されます。'}</p></>}
         {value.missing>0&&<p className="nutrition-incomplete">栄養量が未入力の記録：{value.missing}件</p>}
       </div>;
     })}</div>}
