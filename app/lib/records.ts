@@ -4,8 +4,8 @@ export const mealLabels: Record<MealKey, string> = { breakfast: "朝ごはん", 
 export const nutrientKeys = ["carbs", "protein", "fat", "vitamin", "mineral"] as const;
 export type NutrientKey = (typeof nutrientKeys)[number];
 export const nutrientLabels: Record<NutrientKey, string> = { carbs: "炭水化物", protein: "たんぱく質", fat: "脂質", vitamin: "ビタミン", mineral: "ミネラル" };
-export type FoodObservation = { food: string; nutrients: NutrientKey[] };
-export type Analysis = { foods: FoodObservation[]; message: string };
+export type FoodObservation = { food: string; nutrients: NutrientKey[]; description?: string; basis?: 'visible' | 'inferred' };
+export type Analysis = { foods: FoodObservation[]; message: string; dishName?: string; summary?: string };
 export type Photo = { id: string; url: string };
 export type Meal = { photos: Photo[]; note: string; message: string; analyzed: boolean; analysis?: Analysis };
 export type Snack = { id: string; note: string; date: string; photo?: string };
@@ -41,14 +41,22 @@ export function parseAnalysis(raw: unknown): Analysis | null {
   if (!raw || typeof raw !== "object") return null;
   const a = raw as Record<string, unknown>;
   if (!Array.isArray(a.foods) || typeof a.message !== "string") return null;
+  if (a.dishName !== undefined && typeof a.dishName !== "string") return null;
+  if (a.summary !== undefined && typeof a.summary !== "string") return null;
   const foods: FoodObservation[] = [];
   for (const item of a.foods.slice(0, 12)) {
     if (!item || typeof item !== "object") return null;
     if (typeof item.food !== "string" || !Array.isArray(item.nutrients)) return null;
     if (!item.nutrients.every((k: unknown) => nutrientKeys.includes(k as NutrientKey))) return null;
-    foods.push({ food: item.food.slice(0, 60), nutrients: [...new Set<NutrientKey>(item.nutrients)] });
+    if (item.description !== undefined && typeof item.description !== "string") return null;
+    if (item.basis !== undefined && item.basis !== 'visible' && item.basis !== 'inferred') return null;
+    foods.push({ food: item.food.slice(0, 60), nutrients: [...new Set<NutrientKey>(item.nutrients)],
+      ...(item.description ? { description: item.description.slice(0, 300) } : {}),
+      ...(item.basis ? { basis: item.basis } : {}) });
   }
-  return { foods, message: a.message.slice(0, 500) };
+  return { foods, message: a.message.slice(0, 500),
+    ...(a.dishName ? { dishName: a.dishName.slice(0, 100) } : {}),
+    ...(a.summary ? { summary: a.summary.slice(0, 500) } : {}) };
 }
 export function normalizeMeal(value: unknown): Meal {
   const m = value && typeof value === "object" ? value as Record<string, unknown> : {};
@@ -82,3 +90,4 @@ export function combineRecords(uid: string, daily: RawRecord[], meals: RawRecord
   }
   return result;
 }
+
